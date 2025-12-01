@@ -1,0 +1,62 @@
+"""Database connection and session management."""
+
+import logging
+from typing import AsyncGenerator
+
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    create_async_engine,
+    async_sessionmaker,
+)
+from sqlalchemy.pool import NullPool
+
+from app.config import settings
+
+logger = logging.getLogger(__name__)
+
+# Create async engine
+engine = create_async_engine(
+    settings.DATABASE_URL,
+    echo=settings.DATABASE_ECHO,
+    poolclass=NullPool if settings.DEBUG else None,
+    pool_pre_ping=True,
+    pool_recycle=3600,
+    connect_args={"timeout": settings.HTTP_TIMEOUT},
+)
+
+# Create async session factory
+AsyncSessionLocal = async_sessionmaker(
+    engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+    autoflush=False,
+    autocommit=False,
+)
+
+
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """Dependency to get database session."""
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+        except Exception as e:
+            await session.rollback()
+            logger.error(f"Database session error: {e}")
+            raise
+        finally:
+            await session.close()
+
+
+async def init_db():
+    """Initialize database tables."""
+    from app.models import Base
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+    logger.info("Database tables initialized")
+
+
+async def close_db():
+    """Close database connection."""
+    await engine.dispose()
+    logger.info("Database connection closed")
