@@ -259,7 +259,11 @@ const ProductDetails = () => {
                       <ProductImages 
                         title={product.title}
                         imageUrl={product.image_url}
-                        imageUrls={(product as any).image_urls}
+                        imageUrls={
+                          enrichedData?.immersive_data?.product_results?.thumbnails?.length > 0
+                            ? enrichedData.immersive_data.product_results.thumbnails
+                            : (product as any).image_urls
+                        }
                       />
                     </div>
 
