@@ -569,15 +569,21 @@ const ProductDetails = () => {
                   )}
 
                   {/* YouTube Videos Section */}
-                  {/* Coming soon when API is ready */}
-                  {/* {isLoadingVideos ? (
-                    <YouTubeVideosSkeleton />
-                  ) : (
+                  {enrichedData?.immersive_data?.product_results?.videos && (
                     <VideoReviews
                       productId={productId || ""} 
-                      videos={(videosData as any)?.videos || []}
+                      videos={(enrichedData.immersive_data.product_results.videos as any[]).map((video: any) => ({
+                        id: video.link || `${video.title}-${Math.random()}`,
+                        title: video.title || '',
+                        description: video.description || '',
+                        video_url: video.link || '',
+                        thumbnail_url: video.thumbnail || '',
+                        views: 0,
+                        likes: 0,
+                        platform: 'YouTube'
+                      }))}
                     />
-                  )} */}
+                  )}
 
                   {/* User Reviews Section - Combined Amazon + External */}
                   <ProductReviews 

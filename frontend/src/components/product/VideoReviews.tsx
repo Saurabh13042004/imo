@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
-import { useState } from "react";
-import { Play, Eye, ThumbsUp, Youtube, Video as VideoIcon, X } from "lucide-react";
+import { useState, useRef } from "react";
+import { Play, Eye, ThumbsUp, Youtube, Video as VideoIcon, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,9 +23,23 @@ interface VideoReviewsProps {
   videos?: Video[];
 }
 
+// Hide scrollbar styles
+const scrollbarHideStyles = `
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+`;
+
 export const VideoReviews = ({ productId, videos = [] }: VideoReviewsProps) => {
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(videos.length > 3);
 
   const formatNumber = (num: number) => {
     if (num >= 1000000) {
@@ -45,6 +59,25 @@ export const VideoReviews = ({ productId, videos = [] }: VideoReviewsProps) => {
   const closeDialog = () => {
     setIsDialogOpen(false);
     setSelectedVideo(null);
+  };
+
+  const checkScroll = () => {
+    if (scrollContainerRef.current) {
+      const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
+      setCanScrollLeft(scrollLeft > 0);
+      setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
+    }
+  };
+
+  const scroll = (direction: 'left' | 'right') => {
+    if (scrollContainerRef.current) {
+      const scrollAmount = 400;
+      scrollContainerRef.current.scrollBy({
+        left: direction === 'left' ? -scrollAmount : scrollAmount,
+        behavior: 'smooth'
+      });
+      setTimeout(checkScroll, 300);
+    }
   };
 
   const getPlatformIcon = (platform: string) => {
@@ -95,80 +128,115 @@ export const VideoReviews = ({ productId, videos = [] }: VideoReviewsProps) => {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {videos.map((video) => (
-            <motion.div
-              key={video.id}
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.6 }}
-              whileHover={{ y: -4 }}
-            >
-              <Card 
-                className="overflow-hidden cursor-pointer group hover:shadow-lg transition-all duration-300"
-                onClick={() => handleVideoClick(video)}
+        <div className="relative group">
+          {/* Scroll Container */}
+          <div
+            ref={scrollContainerRef}
+            onScroll={checkScroll}
+            className="flex gap-6 overflow-x-auto scrollbar-hide pb-4"
+            style={{
+              scrollBehavior: 'smooth',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+            }}
+          >
+            {videos.map((video) => (
+              <motion.div
+                key={video.id}
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.6 }}
+                whileHover={{ y: -4 }}
+                className="flex-shrink-0 w-80"
               >
-                <div className="relative aspect-video overflow-hidden">
-                  {video.thumbnail_url ? (
-                    <img
-                      src={video.thumbnail_url}
-                      alt={video.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-muted flex items-center justify-center">
-                      <Youtube className="h-12 w-12 text-muted-foreground/50" />
+                <Card 
+                  className="overflow-hidden cursor-pointer group hover:shadow-lg transition-all duration-300 h-full"
+                  onClick={() => handleVideoClick(video)}
+                >
+                  <div className="relative aspect-video overflow-hidden">
+                    {video.thumbnail_url ? (
+                      <img
+                        src={video.thumbnail_url}
+                        alt={video.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                    ) : (
+                      <div className="w-full h-full bg-muted flex items-center justify-center">
+                        <Youtube className="h-12 w-12 text-muted-foreground/50" />
+                      </div>
+                    )}
+                    
+                    {/* Play overlay */}
+                    <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                      <div className="bg-red-600 rounded-full p-3">
+                        <Play className="h-6 w-6 text-white fill-white" />
+                      </div>
                     </div>
-                  )}
-                  
-                  {/* Play overlay */}
-                  <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    <div className="bg-red-600 rounded-full p-3">
-                      <Play className="h-6 w-6 text-white fill-white" />
-                    </div>
+
+                    {/* Platform badge */}
+                    <Badge 
+                      variant="secondary" 
+                      className={`absolute top-2 right-2 text-white border-0 ${getPlatformColor(video.platform)}`}
+                    >
+                      {getPlatformIcon(video.platform)}
+                      {video.platform}
+                    </Badge>
                   </div>
 
-                  {/* Platform badge */}
-                  <Badge 
-                    variant="secondary" 
-                    className={`absolute top-2 right-2 text-white border-0 ${getPlatformColor(video.platform)}`}
-                  >
-                    {getPlatformIcon(video.platform)}
-                    {video.platform}
-                  </Badge>
-                </div>
+                  <CardContent className="p-4">
+                    <h3 className="font-semibold text-sm line-clamp-2 mb-2 group-hover:text-primary transition-colors">
+                      {video.title}
+                    </h3>
+                    
+                    {video.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-2 mb-3">
+                        {video.description}
+                      </p>
+                    )}
 
-                <CardContent className="p-4">
-                  <h3 className="font-semibold text-sm line-clamp-2 mb-2 group-hover:text-primary transition-colors">
-                    {video.title}
-                  </h3>
-                  
-                  {video.description && (
-                    <p className="text-xs text-muted-foreground line-clamp-2 mb-3">
-                      {video.description}
-                    </p>
-                  )}
-
-                  <div className="flex items-center justify-between text-xs text-muted-foreground">
-                    <div className="flex items-center space-x-3">
-                      {video.views > 0 && (
-                        <div className="flex items-center">
-                          <Eye className="h-3 w-3 mr-1" />
-                          {formatNumber(video.views)}
-                        </div>
-                      )}
-                      {video.likes > 0 && (
-                        <div className="flex items-center">
-                          <ThumbsUp className="h-3 w-3 mr-1" />
-                          {formatNumber(video.likes)}
-                        </div>
-                      )}
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <div className="flex items-center space-x-3">
+                        {video.views > 0 && (
+                          <div className="flex items-center">
+                            <Eye className="h-3 w-3 mr-1" />
+                            {formatNumber(video.views)}
+                          </div>
+                        )}
+                        {video.likes > 0 && (
+                          <div className="flex items-center">
+                            <ThumbsUp className="h-3 w-3 mr-1" />
+                            {formatNumber(video.likes)}
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+
+          {/* Left Scroll Button */}
+          {canScrollLeft && (
+            <button
+              onClick={() => scroll('left')}
+              className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 bg-primary hover:bg-primary/90 text-white rounded-full p-2 shadow-lg transition-all opacity-0 group-hover:opacity-100 duration-300"
+              aria-label="Scroll left"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+          )}
+
+          {/* Right Scroll Button */}
+          {canScrollRight && (
+            <button
+              onClick={() => scroll('right')}
+              className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 bg-primary hover:bg-primary/90 text-white rounded-full p-2 shadow-lg transition-all opacity-0 group-hover:opacity-100 duration-300"
+              aria-label="Scroll right"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          )}
         </div>
       )}
 
