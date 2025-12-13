@@ -364,11 +364,11 @@ const ProductDetails = () => {
                       </div>
 
                       {/* Price Comparison - Amazon buybox */}
-                      {enrichedData.buybox && enrichedData.buybox.length > 0 && (
+                      {enrichedData.buybox && enrichedData.buybox.filter((offer: any) => offer.price && offer.price > 0).length > 0 && (
                         <div className="bg-card rounded-lg border border-border/50 p-6 space-y-4">
                           <h3 className="font-semibold text-lg">Where to Buy</h3>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {enrichedData.buybox.map((offer: any, idx: number) => (
+                            {enrichedData.buybox.filter((offer: any) => offer.price && offer.price > 0).map((offer: any, idx: number) => (
                               <div
                                 key={idx}
                                 className="p-4 bg-background rounded-lg border border-border/30"
@@ -390,11 +390,11 @@ const ProductDetails = () => {
                       )}
 
                       {/* External Stores from SerpAPI */}
-                      {enrichedData.external_stores && enrichedData.external_stores.length > 0 && (
+                      {enrichedData.external_stores && enrichedData.external_stores.filter((store: any) => store.extracted_price > 0 || store.price > 0).length > 0 && (
                         <div className="bg-card rounded-lg border border-border/50 p-6 space-y-4">
                           <h3 className="font-semibold text-lg">Other Retailers</h3>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {enrichedData.external_stores.slice(0, 4).map((store: any, idx: number) => (
+                            {enrichedData.external_stores.filter((store: any) => store.extracted_price > 0 || store.price > 0).slice(0, 4).map((store: any, idx: number) => (
                               <a
                                 key={idx}
                                 href={store.link}
@@ -475,13 +475,13 @@ const ProductDetails = () => {
                       </div>
 
                       {/* Price Comparison - SerpAPI stores */}
-                      {enrichedData.immersive_data.product_results?.stores && enrichedData.immersive_data.product_results.stores.length > 0 && (
+                      {enrichedData.immersive_data.product_results?.stores && enrichedData.immersive_data.product_results.stores.filter((store: any) => store.extracted_price > 0 || store.price > 0).length > 0 && (
                         <div className="bg-card rounded-lg border border-border/50 p-6 space-y-4">
                           <h3 className="font-semibold text-lg">Where to Buy</h3>
                           
                           {/* SerpAPI stores */}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {enrichedData.immersive_data.product_results.stores.slice(0, 4).map((store: any, idx: number) => (
+                            {enrichedData.immersive_data.product_results.stores.filter((store: any) => store.extracted_price > 0 || store.price > 0).slice(0, 4).map((store: any, idx: number) => (
                               <a
                                 key={idx}
                                 href={store.link}
