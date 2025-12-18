@@ -24,17 +24,14 @@ class AmazonClient:
         }
 
     async def search(self, query: str, limit: int = 20, location: Optional[str] = None) -> List[Dict[str, Any]]:
-        """Search for products on Amazon."""
+        """Search for products on Amazon using provided location or default."""
         if not self.api_key:
             logger.warning("RapidAPI key not configured")
             return []
 
         try:
-            # Amazon RapidAPI expects a valid zip code or location string.
-            # If the user passes "india" or something generic, it might fail if not recognized.
-            # We will try to use the provided location, but fallback to a safe default if it looks invalid or empty.
-            # For now, we'll trust the user input but ensure it's not None.
-            geo_location = location if location and len(location) > 0 else "60607"
+            # Use provided location, fallback to default zipcode
+            geo_location = location if location and len(location) > 0 else settings.DEFAULT_ZIPCODE
             
             payload = {
                 "source": "amazon_search",
@@ -51,7 +48,7 @@ class AmazonClient:
 
             data = response.json()
             products = self._parse_search_results(data, query)
-            logger.info(f"Found {len(products)} products on Amazon for query: {query}")
+            logger.info(f"Found {len(products)} products on Amazon for query: {query}, location: {geo_location}")
             return products
 
         except Exception as e:

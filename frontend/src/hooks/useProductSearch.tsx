@@ -12,6 +12,9 @@ interface SearchProductsParams {
 	minImoScore?: number;
 	minRating?: number;
 	zipcode?: string;
+	country?: string;
+	city?: string;
+	language?: string;
 }
 
 interface SearchResponse {
@@ -37,6 +40,9 @@ export function useProductSearch({
 	minImoScore,
 	minRating,
 	zipcode = "60607",
+	country = "India",
+	city = "",
+	language = "en",
 }: SearchProductsParams) {
 	const [products, setProducts] = useState<Product[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
@@ -60,6 +66,9 @@ export function useProductSearch({
 				const data = await searchProducts({
 					keyword: query.trim(),
 					zipcode: zipcode,
+					country: country,
+					city: city,
+					language: language,
 				});
 
 				if (!data.success || !data.results) {
@@ -154,7 +163,7 @@ export function useProductSearch({
 		};
 
 		fetchProducts();
-	}, [query, enabled, page, pageSize, sortBy, priceRange, minRating, zipcode]);
+	}, [query, enabled, page, pageSize, sortBy, priceRange, minRating, zipcode, country, city, language]);
 
 	return {
 		products,

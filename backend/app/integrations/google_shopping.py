@@ -4,6 +4,9 @@ import logging
 import re
 from typing import List, Dict, Any, Optional
 from serpapi import GoogleSearch
+import json
+
+from app.utils.geo import get_country_config, log_serpapi_params
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +28,8 @@ class GoogleShoppingClient:
         query: str, 
         limit: int = 100,
         location: Optional[str] = None,
+        country: Optional[str] = None,
+        language: str = "en",
         timeout: int = 5
     ) -> List[Dict[str, Any]]:
         """Search Google Shopping and return results.
@@ -32,35 +37,67 @@ class GoogleShoppingClient:
         Args:
             query: Search keyword
             limit: Maximum results to return
-            location: Location for search (e.g., "Austin,Texas")
+            location: Location string (e.g., "Bengaluru,India" or "India")
+            country: Country name for geo-targeting (used if location not provided)
+            language: Language code (default "en")
             timeout: Request timeout in seconds
             
         Returns:
             List of product results
         """
         try:
+            # If location not provided, use country
+            if not location and country:
+                location = country
+            elif not location:
+                location = "United States"
+            
+            # Get geo config for the location
+            geo_config = get_country_config(country or "United States")
+            
+            # Build SerpAPI parameters
             params = {
+                "engine": "google_shopping",  # Explicit engine
                 "q": query,
-                "tbm": "shop",  # shopping results
                 "num": min(limit, 100),  # max 100 per request
                 "api_key": self.api_key,
+                "location": location,
+                "gl": geo_config["gl"],
+                "hl": language,
+                "google_domain": geo_config["google_domain"],
             }
 
-            if location:
-                params["location"] = location
+            # Log the exact SerpAPI request being made
+            log_serpapi_params(
+                keyword=query,
+                location=location,
+                gl=geo_config["gl"],
+                hl=language,
+                google_domain=geo_config["google_domain"]
+            )
+
+            logger.info(
+                f"[GoogleShoppingClient] Executing search with params:\\n"
+                f"  Params: {json.dumps({k: v for k, v in params.items() if k != 'api_key'}, indent=2)}"
+            )
 
             search = GoogleSearch(params)
             results = search.get_dict()
 
             if "error" in results:
-                logger.error(f"Google Shopping API error: {results.get('error')}")
+                logger.error(f"[SerpAPI] Google Shopping API error: {results.get('error')}")
                 return []
 
-            # Extract shopping results - this is the main results array
+            # Extract shopping results
             shopping_results = results.get("shopping_results", [])
             
+            logger.info(
+                f"[SerpAPI Response] Status: Success | Results: {len(shopping_results)} | "
+                f"Query: {query} | Location: {location} | Country: {country}"
+            )
+            
             if not shopping_results:
-                logger.warning(f"No shopping_results found for query: {query}")
+                logger.warning(f"[SerpAPI] No shopping_results found for query: {query} at location: {location}")
                 return []
             
             # Transform results

@@ -47,6 +47,9 @@ async function apiCall<T>(
 export interface SearchRequest {
   keyword: string;
   zipcode?: string;
+  country?: string;
+  city?: string;
+  language?: string;
 }
 
 export interface SearchResponse {
@@ -82,6 +85,9 @@ export async function searchProducts(
     body: JSON.stringify({
       keyword: request.keyword,
       zipcode: request.zipcode || "60607",
+      country: request.country || "India",
+      city: request.city || "",
+      language: request.language || "en",
     }),
   });
 }

@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import type { Product } from "@/types/search";
 import { Link } from "react-router-dom";
 import React from "react";
+import { useSearchUrl } from "@/hooks/useSearchUrl";
+import { formatPriceWithCurrency } from "@/utils/currencyUtils";
 
 interface ProductGridProps {
   products: Product[];
@@ -14,6 +16,8 @@ interface ProductGridProps {
 }
 
 export const ProductGrid = ({ products }: ProductGridProps) => {
+  const { country } = useSearchUrl();
+  
   // Filter out products with invalid IDs before rendering
   const validProducts = products.filter(product => {
     const hasValidId = product.id && typeof product.id === 'string' && product.id !== 'undefined' && product.id !== 'null';
@@ -94,7 +98,7 @@ export const ProductGrid = ({ products }: ProductGridProps) => {
                   </div>
                   
                   <p className="text-2xl font-bold text-primary">
-                    ${typeof product.price === 'string' ? parseFloat(product.price).toFixed(2) : product.price.toFixed(2)}
+                    {formatPriceWithCurrency(product.price, country)}
                   </p>
                 </div>
 

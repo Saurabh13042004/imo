@@ -27,18 +27,19 @@ PRODUCT_BY_SOURCE: Dict[str, ProductResponse] = {}  # Maps "source:source_id" ->
 
 
 class SearchService:
-    """Service for searching products across multiple sources with multi-threading."""
+    """Service for searching products with Google Shopping as canonical source."""
 
     def __init__(self):
-        self.rapidapi_key = settings.RAPIDAPI_KEY
         self.serpapi_key = settings.SERPAPI_KEY
         self.search_timeout = settings.SEARCH_TIMEOUT
         self.total_timeout = settings.SEARCH_TOTAL_TIMEOUT
         
-        # Initialize Google Shopping client if API key is available
+        # Initialize Google Shopping client (required)
         self.google_client = None
         if self.serpapi_key:
             self.google_client = GoogleShoppingClient(self.serpapi_key)
+        else:
+            logger.warning("SerpAPI key not configured - Google Shopping search will not work")
 
     async def search_all_sources(
         self,
@@ -46,11 +47,11 @@ class SearchService:
         search_request: SearchRequest,
         use_cache: bool = True
     ) -> Tuple[List[ProductResponse], int]:
-        """Search multiple sources in parallel and combine results.
+        """Search using Google Shopping as canonical source.
         
         Args:
             db: Database session
-            search_request: Search request with keyword and optional zipcode
+            search_request: Search request with keyword, country, city, language
             use_cache: Whether to use cache
             
         Returns:
@@ -58,19 +59,35 @@ class SearchService:
         """
         try:
             start_time = time.time()
-            zipcode = search_request.zipcode or "60607"
             keyword = search_request.keyword.strip()
+            country = search_request.country or "United States"
+            city = search_request.city
+            language = search_request.language or "en"
             
-            logger.info(f"Starting parallel search for keyword: {keyword}, zipcode: {zipcode}")
+            # Build location string for SerpAPI
+            if city:
+                location = f"{city},{country}"
+            else:
+                location = country
             
-            # Run searches in parallel
-            results = self._search_parallel(keyword, zipcode)
+            logger.info(
+                f"[SearchService] Starting search:\\n"
+                f"  Keyword: {keyword}\\n"
+                f"  Country: {country}\\n"
+                f"  City: {city}\\n"
+                f"  Language: {language}\\n"
+                f"  Location for SerpAPI: {location}"
+            )
             
-            # Combine and deduplicate results
-            combined_results = self._combine_and_deduplicate(results)
+            if not self.google_client:
+                logger.error("Google Shopping client not initialized")
+                return [], 0
+            
+            # Search Google Shopping with proper geo parameters
+            results = self._search_google_shopping(keyword, location, country, language)
             
             # Convert to ProductResponse objects
-            product_responses = self._convert_to_product_responses(combined_results)
+            product_responses = self._convert_to_product_responses(results)
             
             # Cache products for later retrieval
             for product in product_responses:
@@ -82,169 +99,63 @@ class SearchService:
             
             elapsed = time.time() - start_time
             logger.info(
-                f"Search completed in {elapsed:.2f}s: "
-                f"Found {len(product_responses)} unique products from {len(results)} sources"
+                f"[SearchService] Search completed in {elapsed:.2f}s: "
+                f"Found {len(product_responses)} unique products"
             )
             
             return product_responses, len(product_responses)
 
         except Exception as e:
-            logger.error(f"Error in search_all_sources: {e}", exc_info=True)
+            logger.error(f"[SearchService] Error in search_all_sources: {e}", exc_info=True)
             return [], 0
 
-    def _search_parallel(self, keyword: str, zipcode: str) -> Dict[str, List[Dict[str, Any]]]:
-        """Execute searches in parallel using thread pool.
+    def _search_google_shopping(
+        self,
+        keyword: str,
+        location: str,
+        country: Optional[str] = None,
+        language: str = "en"
+    ) -> List[Dict[str, Any]]:
+        """Search Google Shopping with proper geo parameters.
         
         Args:
             keyword: Search keyword
-            zipcode: Geographic location
+            location: Location string (e.g., "India" or "Bengaluru,India")
+            country: Country name for geo-targeting
+            language: Language code
             
         Returns:
-            Dictionary with results from each source
-        """
-        results = {}
-        futures = {}
-        
-        # Submit Amazon search
-        if self.rapidapi_key:
-            future = THREAD_POOL.submit(
-                self._call_amazon_api_safe,
-                keyword,
-                zipcode
-            )
-            futures['amazon'] = future
-        
-        # Submit Google Shopping search
-        if self.google_client:
-            future = THREAD_POOL.submit(
-                self._call_google_shopping_safe,
-                keyword,
-                zipcode
-            )
-            futures['google_shopping'] = future
-        
-        # Collect results with timeout
-        timeout_per_source = self.total_timeout / max(len(futures), 1)
-        
-        for source, future in futures.items():
-            try:
-                result = future.result(timeout=timeout_per_source + 1)
-                results[source] = result
-                logger.info(f"Retrieved {len(result)} results from {source}")
-            except Exception as e:
-                logger.error(f"Error getting results from {source}: {e}")
-                results[source] = []
-        
-        return results
-
-    def _call_amazon_api_safe(self, keyword: str, zipcode: str) -> List[Dict[str, Any]]:
-        """Thread-safe wrapper for Amazon API calls.
-        
-        Args:
-            keyword: Search keyword
-            zipcode: Geographic location
-            
-        Returns:
-            List of product results
+            List of product results from Google Shopping
         """
         try:
-            return self._call_amazon_api(keyword, zipcode)
-        except Exception as e:
-            logger.error(f"Error in Amazon API call: {e}")
-            return []
-
-    def _call_google_shopping_safe(self, keyword: str, zipcode: str) -> List[Dict[str, Any]]:
-        """Thread-safe wrapper for Google Shopping API calls.
-        
-        Args:
-            keyword: Search keyword
-            zipcode: Geographic location (converted to location string)
-            
-        Returns:
-            List of product results
-        """
-        try:
-            if not self.google_client:
-                return []
-            
-            # Convert zipcode to location string (e.g., "60607" -> "Chicago, Illinois")
-            # For now, we'll just use the zipcode as-is, SerpAPI handles it
+            logger.info(
+                f"[SearchService._search] Calling GoogleShoppingClient.search with:\\n"
+                f"  Keyword: {keyword}\\n"
+                f"  Location: {location}\\n"
+                f"  Country: {country}\\n"
+                f"  Language: {language}"
+            )
             results = self.google_client.search(
                 query=keyword,
                 limit=100,
-                location=None  # SerpAPI can work with just the query
+                location=location,
+                country=country,
+                language=language
             )
+            logger.info(f"[SearchService._search] Retrieved {len(results)} results")
             return results
         except Exception as e:
-            logger.error(f"Error in Google Shopping API call: {e}")
+            logger.error(f"[SearchService._search] Error: {e}", exc_info=True)
             return []
-
-    def _combine_and_deduplicate(
-        self, 
-        results: Dict[str, List[Dict[str, Any]]]
-    ) -> List[Dict[str, Any]]:
-        """Combine results from multiple sources and deduplicate.
-        
-        Args:
-            results: Dictionary of results by source
-            
-        Returns:
-            Combined and deduplicated list of results
-        """
-        combined = []
-        seen_ids: Set[str] = set()
-        seen_titles: Dict[str, str] = {}  # title hash -> original title
-        
-        # Process Amazon results first (preferred source)
-        for result in results.get('amazon', []):
-            product_id = self._get_product_id(result)
-            title_hash = self._hash_title(result.get('title', ''))
-            
-            # Ensure source is set to amazon
-            result['source'] = 'amazon'
-            
-            if product_id and product_id not in seen_ids:
-                combined.append(result)
-                seen_ids.add(product_id)
-                seen_titles[title_hash] = result.get('title', '')
-        
-        # Process Google Shopping results
-        for result in results.get('google_shopping', []):
-            product_id = self._get_product_id(result)
-            title_hash = self._hash_title(result.get('title', ''))
-            
-            # Get source from result (retailer name like "Walmart", "Best Buy", etc.)
-            # If not set, default to google_shopping as fallback
-            source = result.get('source', 'google_shopping')
-            result['source'] = source
-            
-            # Skip if already have this product ID
-            if product_id and product_id in seen_ids:
-                continue
-            
-            # Skip if title is very similar to existing one (fuzzy dedup)
-            if title_hash in seen_titles and self._titles_similar(
-                seen_titles[title_hash],
-                result.get('title', '')
-            ):
-                continue
-            
-            combined.append(result)
-            if product_id:
-                seen_ids.add(product_id)
-            seen_titles[title_hash] = result.get('title', '')
-        
-        logger.info(f"Deduplicated: {sum(len(v) for v in results.values())} -> {len(combined)} unique products")
-        return combined
 
     def _convert_to_product_responses(
         self,
         results: List[Dict[str, Any]]
     ) -> List[ProductResponse]:
-        """Convert raw results to ProductResponse objects.
+        """Convert Google Shopping results to ProductResponse objects.
         
         Args:
-            results: List of combined results
+            results: List of results from Google Shopping
             
         Returns:
             List of ProductResponse objects
@@ -253,25 +164,22 @@ class SearchService:
         
         for result in results:
             try:
-                # Ensure source is properly set
-                source = result.get("source", "unknown")
-                if not source or source == "unknown":
-                    # Try to determine source from context
-                    if result.get("asin"):
-                        source = "amazon"
-                    else:
-                        source = "Unknown Retailer"
+                # Source is retailer name from Google Shopping (Walmart, Best Buy, Amazon, etc.)
+                source = result.get("source", "Google Shopping")
                 
-                # Handle both Amazon API field names and standard names
+                # Extract image URL
                 image_url = result.get("image_url") or result.get("url_image", "")
-                review_count = result.get("review_count") or result.get("reviews_count", 0)
                 
-                # Get immersive product data
+                # Extract review count and rating
+                review_count = result.get("review_count") or result.get("reviews_count", 0)
+                rating = result.get("rating") or result.get("rating", None)
+                
+                # Get immersive product data for enrichment
                 immersive_api_link = result.get("immersive_product_api_link", "")
                 immersive_page_token = result.get("immersive_product_page_token", "")
                 
-                # If immersive link is missing and it's not Amazon, try to fetch it
-                if not immersive_api_link and source.lower() != "amazon":
+                # Try to fetch immersive link if not present
+                if not immersive_api_link and self.google_client:
                     try:
                         fetched_link = self.google_client.get_immersive_product_data(
                             result.get("title", ""),
@@ -285,21 +193,20 @@ class SearchService:
                 
                 product_response = ProductResponse(
                     id=str(uuid4()),
-                    title=result.get("title", "")[:200],  # Limit title length
+                    title=result.get("title", "")[:200],
                     source=source,
-                    source_id=result.get("source_id", result.get("product_id", result.get("asin", ""))),
-                    asin=result.get("asin", ""),
+                    source_id=result.get("source_id", result.get("product_id", "")),
+                    asin="",  # No ASIN for non-Amazon sources
                     url=result.get("url", ""),
                     image_url=image_url,
                     price=self._parse_price(result.get("price")),
                     currency=result.get("currency", "USD"),
-                    rating=self._parse_rating(result.get("rating")),
+                    rating=self._parse_rating(rating),
                     review_count=int(review_count) if review_count else 0,
                     description=result.get("description", result.get("title", ""))[:500],
                     brand=result.get("brand", result.get("manufacturer", "")),
                     category=result.get("category", ""),
                     availability=result.get("availability", "In Stock"),
-                    # Google Shopping immersive product details
                     immersive_product_page_token=immersive_page_token,
                     immersive_product_api_link=immersive_api_link,
                     created_at=datetime.utcnow(),
@@ -402,59 +309,6 @@ class SearchService:
             return None
         except (ValueError, IndexError, AttributeError):
             return None
-
-    def _call_amazon_api(self, query: str, zipcode: str) -> List[Dict[str, Any]]:
-        """Call Amazon data scraper API via RapidAPI.
-        
-        Args:
-            query: Search query
-            zipcode: Geographic location
-            
-        Returns:
-            List of product results from Amazon
-        """
-        import http.client
-        
-        try:
-            conn = http.client.HTTPSConnection("amazon-data-scraper-api3.p.rapidapi.com")
-
-            payload = json.dumps({
-                "source": "amazon_search",
-                "query": query,
-                "geo_location": zipcode,
-                "domain": "com",
-                "parse": True
-            })
-
-            headers = {
-                'x-rapidapi-key': self.rapidapi_key,
-                'x-rapidapi-host': "amazon-data-scraper-api3.p.rapidapi.com",
-                'Content-Type': "application/json"
-            }
-
-            conn.request("POST", "/queries", payload, headers)
-            res = conn.getresponse()
-            data = res.read()
-            
-            response_data = json.loads(data.decode("utf-8"))
-            
-            # Extract results from API response
-            if response_data.get("results") and len(response_data["results"]) > 0:
-                content = response_data["results"][0].get("content", {})
-                results_data = content.get("results", {})
-                
-                # Combine paid and organic results
-                all_results = []
-                all_results.extend(results_data.get("paid", []))
-                all_results.extend(results_data.get("organic", []))
-                
-                return all_results
-            
-            return []
-
-        except Exception as e:
-            logger.error(f"Error calling Amazon API: {e}", exc_info=True)
-            return []
 
     async def get_product_by_id(self, db: AsyncSession, product_id: str) -> Optional[ProductResponse]:
         """Get product by ID from cache.

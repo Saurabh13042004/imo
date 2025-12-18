@@ -1,17 +1,19 @@
-"""AI service for review summarization and sentiment analysis using Google Gemini."""
+"""AI service for product verdict generation using Google Gemini."""
 
 import logging
 from typing import List, Optional, Dict, Any
 import json
+import asyncio
 
 import google.generativeai as genai
+import httpx
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
 
 class AIService:
-    """Service for AI-powered review analysis using Google Gemini."""
+    """Service for AI-powered product verdict generation using Google Gemini."""
 
     def __init__(self):
         self.api_key = settings.GEMINI_API_KEY
@@ -19,273 +21,6 @@ class AIService:
             genai.configure(api_key=self.api_key)
         self.initialized = bool(self.api_key)
         self.model = genai.GenerativeModel('gemini-2.5-flash') if self.initialized else None
-
-    async def summarize_reviews(
-        self,
-        reviews: List[str],
-        product_name: str
-    ) -> Optional[str]:
-        """Generate comprehensive review summary using Google Gemini."""
-        if not self.initialized:
-            logger.warning("Gemini API key not configured")
-            return None
-
-        if not reviews:
-            return None
-
-        try:
-            # Prepare review text
-            review_text = "\n\n".join(reviews[:10])  # Limit to 10 reviews
-
-            prompt = f"""Analyze the following customer reviews for "{product_name}" and provide:
-1. A concise summary (2-3 sentences)
-2. Key pros (3-5 points)
-3. Key cons (3-5 points)
-4. Overall recommendation
-
-Reviews:
-{review_text}
-
-Please format the response as JSON."""
-
-            response = self.model.generate_content(prompt)
-            
-            summary = response.text
-            logger.info(f"Generated review summary for product: {product_name}")
-            return summary
-
-        except Exception as e:
-            logger.error(f"Error summarizing reviews: {e}")
-            return None
-
-    async def analyze_sentiment(self, review_text: str) -> Optional[str]:
-        """Determine review sentiment using Gemini."""
-        if not self.initialized:
-            logger.warning("Gemini API key not configured")
-            return None
-
-        try:
-            prompt = f"""Analyze the sentiment of this review and respond with only one word: positive, negative, or neutral.
-
-Review: {review_text[:500]}"""
-
-            response = self.model.generate_content(prompt)
-            
-            sentiment = response.text.strip().lower()
-
-            if sentiment in ["positive", "negative", "neutral"]:
-                return sentiment
-            return "neutral"
-
-        except Exception as e:
-            logger.error(f"Error analyzing sentiment: {e}")
-            return None
-
-    async def extract_pros_cons(self, reviews: List[str]) -> Optional[Dict[str, Any]]:
-        """Extract key pros and cons from reviews using Gemini."""
-        if not self.initialized:
-            logger.warning("Gemini API key not configured")
-            return None
-
-        if not reviews:
-            return None
-
-        try:
-            review_text = "\n\n".join(reviews[:10])
-
-            prompt = f"""Extract the main pros and cons from these customer reviews.
-
-Reviews:
-{review_text}
-
-Please respond in JSON format with 'pros' and 'cons' as arrays of strings."""
-
-            response = self.model.generate_content(prompt)
-            
-            content = response.text
-            # Try to parse as JSON
-            result = json.loads(content)
-            logger.info("Extracted pros and cons from reviews")
-            return result
-
-        except json.JSONDecodeError:
-            logger.error("Failed to parse AI response as JSON")
-            return None
-        except Exception as e:
-            logger.error(f"Error extracting pros and cons: {e}")
-            return None
-
-    async def generate_title_summary(self, product_title: str, reviews: List[str]) -> Optional[str]:
-        """Generate a concise summary for product title using Gemini."""
-        if not self.initialized:
-            return None
-
-        if not reviews:
-            return None
-
-        try:
-            review_text = " ".join(reviews[:5])
-
-            prompt = f"""Summarize the main topic of these reviews in one short sentence (max 10 words).
-Product: {product_title}
-Reviews: {review_text[:300]}"""
-
-            response = self.model.generate_content(prompt)
-            
-            summary = response.text.strip()
-            return summary
-
-        except Exception as e:
-            logger.error(f"Error generating title summary: {e}")
-            return None
-
-    async def analyze_amazon_product(
-        self,
-        amazon_data: Dict[str, Any],
-        serp_data: Optional[Dict[str, Any]] = None,
-        product_title: str = ""
-    ) -> Optional[Dict[str, Any]]:
-        """Analyze Amazon product using Gemini to generate intelligent insights.
-        
-        This is the INTELLIGENCE LAYER that compresses raw data into actionable insights.
-        
-        Args:
-            amazon_data: Amazon product data (from Amazon API)
-            serp_data: Optional SerpAPI enrichment data (external reviews)
-            product_title: Product title for context
-            
-        Returns:
-            Dictionary with AI analysis including pros, cons, sentiment, verdict
-        """
-        if not self.initialized:
-            logger.warning("Gemini API key not configured, skipping AI analysis")
-            return None
-
-        try:
-            # Extract key information from Amazon data
-            reviews = self._extract_reviews(amazon_data)
-            rating_distribution = amazon_data.get("rating_stars_distribution", [])
-            average_rating = amazon_data.get("rating", 0)
-            bullet_points = amazon_data.get("bullet_points", "")
-            
-            # Extract SerpAPI enrichment if available
-            serp_reviews = []
-            if serp_data and isinstance(serp_data, dict):
-                serp_reviews = serp_data.get("user_reviews", [])
-            
-            # Build the prompt for Gemini
-            prompt = self._build_analysis_prompt(
-                title=product_title,
-                amazon_reviews=reviews[:10],  # Limit to top 10 for cost
-                serp_reviews=serp_reviews[:5],
-                rating_distribution=rating_distribution,
-                average_rating=average_rating,
-                bullet_points=bullet_points
-            )
-            
-            # Call Gemini API
-            response = self.model.generate_content(prompt)
-            
-            if not response:
-                logger.warning("Failed to get response from Gemini")
-                return None
-            
-            # Parse Gemini response
-            analysis = self._parse_gemini_response(response.text)
-            return analysis
-            
-        except Exception as e:
-            logger.error(f"Error analyzing product with Gemini: {e}", exc_info=True)
-            return None
-
-    def _extract_reviews(self, amazon_data: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Extract reviews from Amazon data."""
-        reviews = []
-        if "reviews" in amazon_data and isinstance(amazon_data["reviews"], list):
-            for review in amazon_data["reviews"]:
-                reviews.append({
-                    "title": review.get("title", ""),
-                    "rating": review.get("rating", 0),
-                    "content": review.get("content", ""),
-                    "author": review.get("author", ""),
-                    "verified": review.get("is_verified", False)
-                })
-        return reviews
-
-    def _build_analysis_prompt(
-        self,
-        title: str,
-        amazon_reviews: List[Dict[str, Any]],
-        serp_reviews: List[Dict[str, Any]],
-        rating_distribution: List[Dict[str, Any]],
-        average_rating: float,
-        bullet_points: str
-    ) -> str:
-        """Build the prompt for Gemini analysis."""
-        
-        amazon_reviews_text = "\n".join([
-            f"- [{r['rating']}★] {r['title']}: {r['content'][:300]}"
-            for r in amazon_reviews
-        ])
-        
-        serp_reviews_text = "\n".join([
-            f"- [{r.get('rating', 'N/A')}★] {r.get('title', r.get('text', '')[:200])}"
-            for r in serp_reviews
-        ])
-        
-        rating_dist_text = "\n".join([
-            f"- {r['rating']}★: {r['percentage']}%"
-            for r in rating_distribution
-        ])
-        
-        prompt = f"""You are analyzing a product to provide intelligent insights for consumers.
-
-PRODUCT: {title}
-AVERAGE RATING: {average_rating}/5
-
-RATING DISTRIBUTION:
-{rating_dist_text if rating_dist_text else "Not available"}
-
-KEY FEATURES (from manufacturer):
-{bullet_points[:500] if bullet_points else "Not available"}
-
-AMAZON REVIEWS (top feedback):
-{amazon_reviews_text if amazon_reviews_text else "No reviews available"}
-
-EXTERNAL REVIEWS (from web/forums):
-{serp_reviews_text if serp_reviews_text else "No external reviews available"}
-
-TASK - Provide analysis in JSON format:
-1. Extract top 5 PROS (things users consistently praise)
-2. Extract top 5 CONS (things users consistently complain about)
-3. Identify 2-3 deal-breaker issues (if any)
-4. Rate overall sentiment (0.0-1.0 scale, based on reviews tone)
-5. Give a verdict score (1-10 scale)
-6. Who should buy this product
-7. Who should avoid this product
-
-IMPORTANT RULES:
-- Be specific and cite actual review feedback
-- Focus on repeated complaints, not one-off issues
-- Ignore marketing language and focus on real user experiences
-- If you see conflicting opinions, note that there's disagreement
-- Be honest about weaknesses
-- Use 0.0-1.0 for sentiment_score (0.5 = neutral)
-- Use 1-10 for verdict_score
-
-Return ONLY valid JSON (no markdown, no code blocks):
-{{
-    "summary": "1-2 sentence product summary based on reviews",
-    "pros": ["pro1", "pro2", "pro3", "pro4", "pro5"],
-    "cons": ["con1", "con2", "con3", "con4", "con5"],
-    "deal_breakers": ["issue1", "issue2"],
-    "sentiment_score": 0.8,
-    "verdict_score": 8.2,
-    "who_should_buy": "specific user types",
-    "who_should_avoid": "specific user types that might be disappointed"
-}}"""
-        
-        return prompt
 
     def _parse_gemini_response(self, response_text: str) -> Optional[Dict[str, Any]]:
         """Parse Gemini response and extract JSON."""
@@ -304,12 +39,12 @@ Return ONLY valid JSON (no markdown, no code blocks):
             analysis = json.loads(text)
             
             # Validate required fields
-            required_fields = ["summary", "pros", "cons", "verdict_score"]
+            required_fields = ["summary", "pros", "cons", "imo_score"]
             for field in required_fields:
                 if field not in analysis:
                     logger.warning(f"Gemini response missing field: {field}")
             
-            logger.info("Successfully parsed Gemini product analysis")
+            logger.info("Successfully parsed Gemini product verdict")
             return analysis
             
         except json.JSONDecodeError as e:
@@ -318,5 +53,271 @@ Return ONLY valid JSON (no markdown, no code blocks):
             return None
         except Exception as e:
             logger.error(f"Error parsing Gemini response: {e}", exc_info=True)
+            return None
+
+    async def scrape_store_insights(self, stores: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Scrape store pages for pricing, availability, warranty, and credibility signals.
+        Best-effort, non-blocking operation.
+        
+        Args:
+            stores: List of store dicts from SerpAPI with 'link' key
+            
+        Returns:
+            List of scraped store insights
+        """
+        insights = []
+        
+        if not stores:
+            return insights
+        
+        logger.info(f"[Store Scraping] Starting scrape of {len(stores)} stores")
+        
+        # Scrape stores in parallel with timeout
+        tasks = []
+        for store in stores[:5]:  # Limit to first 5 stores to avoid rate limiting
+            if isinstance(store, dict) and store.get("link"):
+                tasks.append(self._scrape_single_store(store))
+        
+        if not tasks:
+            return insights
+        
+        try:
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for result in results:
+                if isinstance(result, dict):
+                    insights.append(result)
+                elif isinstance(result, Exception):
+                    logger.warning(f"[Store Scraping] Error scraping store: {result}")
+        except Exception as e:
+            logger.error(f"[Store Scraping] Error during parallel scraping: {e}")
+        
+        logger.info(f"[Store Scraping] Successfully scraped {len(insights)} stores")
+        return insights
+
+    async def _scrape_single_store(self, store: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Scrape a single store page for insights.
+        
+        Args:
+            store: Store dict with 'name', 'link', optional 'price'
+            
+        Returns:
+            Dict with store insights or None
+        """
+        try:
+            store_name = store.get("name", "Unknown Store")
+            store_link = store.get("link")
+            original_price = store.get("price") or store.get("extracted_price")
+            
+            if not store_link:
+                return None
+            
+            logger.debug(f"[Store Scraping] Scraping: {store_name} ({store_link[:50]}...)")
+            
+            # Fetch page with short timeout
+            async with httpx.AsyncClient(timeout=3.0) as client:
+                response = await client.get(store_link, follow_redirects=True)
+                response.raise_for_status()
+                html = response.text[:10000]  # Limit to first 10KB
+            
+            # Extract insights from HTML (simple pattern matching)
+            insights = {
+                "store_name": store_name,
+                "store_link": store_link,
+                "price": original_price,
+                "availability_status": self._extract_availability(html),
+                "has_warranty": "warranty" in html.lower() or "guarantee" in html.lower(),
+                "has_free_shipping": "free shipping" in html.lower() or "free delivery" in html.lower(),
+                "has_return_policy": "return" in html.lower() or "exchange" in html.lower(),
+                "has_reviews": "review" in html.lower() or "rating" in html.lower(),
+            }
+            
+            logger.debug(f"[Store Scraping] Scraped {store_name}: {insights}")
+            return insights
+            
+        except asyncio.TimeoutError:
+            logger.debug(f"[Store Scraping] Timeout scraping store: {store.get('name', 'Unknown')}")
+            return None
+        except Exception as e:
+            logger.debug(f"[Store Scraping] Error scraping store: {e}")
+            return None
+
+    def _extract_availability(self, html: str) -> str:
+        """Extract availability status from HTML."""
+        html_lower = html.lower()
+        
+        if "in stock" in html_lower or "in-stock" in html_lower:
+            return "In Stock"
+        elif "out of stock" in html_lower or "out-of-stock" in html_lower:
+            return "Out of Stock"
+        elif "limited" in html_lower:
+            return "Limited Availability"
+        elif "coming soon" in html_lower:
+            return "Coming Soon"
+        else:
+            return "Availability Unknown"
+
+    async def generate_product_verdict(
+        self,
+        product_id: str,
+        enriched_data: Dict[str, Any],
+        store_insights: Optional[List[Dict[str, Any]]] = None
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Generate AI verdict using ONLY the enriched_data provided.
+        
+        CRITICAL: This method does NOT refetch product data.
+        It uses the enriched_data passed as parameter - the single source of truth.
+        
+        Args:
+            product_id: UUID of the product
+            enriched_data: Full enriched product data from /product/enriched endpoint
+            store_insights: Optional scraped store insights
+            
+        Returns:
+            Dict with verdict data or None on failure
+        """
+        if not self.initialized:
+            logger.warning("[AI Verdict] Gemini API key not configured")
+            return None
+        
+        try:
+            # Extract product info from enriched data
+            # Handle both immersive product format and Amazon format
+            immersive_data = enriched_data.get("immersive_data", {})
+            product_results = immersive_data.get("product_results", {})
+            
+            title = enriched_data.get("title", product_results.get("title", "Unknown Product"))
+            description = enriched_data.get("description", "")
+            category = enriched_data.get("category", "")
+            price = enriched_data.get("price", 0)
+            rating = enriched_data.get("rating", 0)
+            total_reviews = enriched_data.get("total_reviews", 0)
+            
+            logger.info(f"[AI Verdict] Generating verdict for: {title}")
+            
+            # Extract reviews from enriched data
+            user_reviews = product_results.get("user_reviews", [])[:10]
+            amazon_reviews = enriched_data.get("amazon_reviews", [])[:10]
+            external_reviews = enriched_data.get("external_reviews", [])[:5]
+            
+            all_reviews = user_reviews + amazon_reviews + external_reviews
+            
+            # Build reviews text
+            reviews_text = ""
+            for review in all_reviews[:10]:
+                if isinstance(review, dict):
+                    rating_val = review.get("rating", 5)
+                    content = (
+                        review.get("text") or 
+                        review.get("content") or 
+                        review.get("review_text") or 
+                        review.get("snippet", "")
+                    )
+                    if content:
+                        reviews_text += f"[{rating_val}★] {content[:300]}\n"
+            
+            # Build stores text with scraped insights
+            stores_text = ""
+            if store_insights:
+                for insight in store_insights:
+                    stores_text += f"- {insight['store_name']}: ${insight.get('price', 'N/A')} | "
+                    stores_text += f"Stock: {insight['availability_status']} | "
+                    stores_text += f"Warranty: {'Yes' if insight['has_warranty'] else 'No'} | "
+                    stores_text += f"Free Shipping: {'Yes' if insight['has_free_shipping'] else 'No'}\n"
+            else:
+                # Use store info from enriched data if no scraping done
+                stores = product_results.get("stores", [])
+                for store in stores[:5]:
+                    store_name = store.get("name", "Store")
+                    store_price = store.get("extracted_price") or store.get("price", "N/A")
+                    stores_text += f"- {store_name}: ${store_price}\n"
+            
+            # Build the Gemini prompt with strict JSON structure
+            prompt = f"""You are an expert product analyst. Generate a verdict for this product based on the data provided.
+
+PRODUCT INFORMATION:
+Title: {title}
+Category: {category}
+Current Price: ${price}
+Rating: {rating}/5.0 ({total_reviews} reviews)
+Description: {description[:300]}
+
+CUSTOMER REVIEWS:
+{reviews_text if reviews_text else "No reviews available"}
+
+STORE OFFERS:
+{stores_text if stores_text else "No store offers available"}
+
+ANALYSIS TASK:
+Analyze all information above and provide a verdict in STRICT JSON format ONLY.
+
+Do NOT include any markdown, code blocks, or explanations - ONLY valid JSON.
+
+Requirements:
+1. imo_score: 0-10 scale (0=worst, 10=best) based on reviews, pricing, and availability
+2. summary: 1-2 sentences summarizing product quality and value
+3. pros: Top 5 pros from reviews and specs (string array)
+4. cons: Top 5 cons from reviews (string array)
+5. who_should_buy: Target customer profile (string)
+6. who_should_avoid: Customer types that might be disappointed (string)
+7. price_fairness: Assessment of current price vs market (string)
+8. deal_breakers: Major issues that disqualify the product (string array)
+
+STRICT RULES:
+- ALWAYS respond with ONLY valid JSON
+- imo_score MUST be a number 0-10
+- All other fields must be strings or string arrays
+- Be honest about both strengths and weaknesses
+- Base verdict on ACTUAL review feedback and pricing data provided
+- If reviews are limited, use specs and price to inform verdict
+
+RETURN ONLY THIS JSON (no markdown, no explanation):
+{{
+    "imo_score": 7.5,
+    "summary": "High quality product with good value...",
+    "pros": ["pro1", "pro2", "pro3", "pro4", "pro5"],
+    "cons": ["con1", "con2", "con3", "con4", "con5"],
+    "who_should_buy": "...",
+    "who_should_avoid": "...",
+    "price_fairness": "...",
+    "deal_breakers": ["issue1"]
+}}"""
+            
+            logger.info(f"[AI Verdict] Calling Gemini for {title}")
+            response = self.model.generate_content(prompt)
+            
+            # Parse response
+            analysis = self._parse_gemini_response(response.text)
+            
+            if not analysis:
+                logger.error(f"[AI Verdict] Failed to parse Gemini response for {title}")
+                return None
+            
+            # Build verdict with validation
+            verdict = {
+                "product_id": product_id,
+                "imo_score": float(analysis.get("imo_score", 5.0)),
+                "summary": str(analysis.get("summary", "")),
+                "pros": analysis.get("pros", []),
+                "cons": analysis.get("cons", []),
+                "who_should_buy": str(analysis.get("who_should_buy", "")),
+                "who_should_avoid": str(analysis.get("who_should_avoid", "")),
+                "price_fairness": str(analysis.get("price_fairness", "")),
+                "deal_breakers": analysis.get("deal_breakers", []),
+            }
+            
+            # Validate IMO score
+            if verdict["imo_score"] < 0:
+                verdict["imo_score"] = 0.0
+            elif verdict["imo_score"] > 10:
+                verdict["imo_score"] = 10.0
+            
+            logger.info(f"[AI Verdict] Generated verdict for {title}: IMO Score {verdict['imo_score']}")
+            return verdict
+            
+        except Exception as e:
+            logger.error(f"[AI Verdict] Error generating verdict: {e}", exc_info=True)
             return None
 

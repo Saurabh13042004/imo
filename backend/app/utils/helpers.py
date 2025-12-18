@@ -56,3 +56,47 @@ def truncate_text(text: str, max_length: int = 200) -> str:
     if len(text) > max_length:
         return text[:max_length].rsplit(" ", 1)[0] + "..."
     return text
+
+
+def format_location_for_serpapi(
+    zipcode: str,
+    city: Optional[str] = None,
+    state: Optional[str] = None,
+    country: Optional[str] = None
+) -> str:
+    """Format location string for SerpAPI requests.
+    
+    SerpAPI expects location in format: "City, State, Country"
+    Example: "Austin, Texas, United States"
+    
+    Args:
+        zipcode: Postal code (used as fallback)
+        city: City name
+        state: State/region name
+        country: Country name
+        
+    Returns:
+        Formatted location string suitable for SerpAPI
+    """
+    # Build location string from available parts
+    location_parts = []
+    
+    if city:
+        location_parts.append(city)
+    if state:
+        location_parts.append(state)
+    if country:
+        location_parts.append(country)
+    
+    # If we have meaningful parts, use them
+    if location_parts:
+        formatted = ", ".join(location_parts)
+        return formatted
+    
+    # Fallback to zipcode if no city/state/country available
+    # For compatibility with systems that only have zipcode
+    if zipcode:
+        return zipcode
+    
+    # Last resort fallback
+    return "United States"

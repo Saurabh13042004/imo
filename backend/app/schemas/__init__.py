@@ -166,10 +166,17 @@ class ProductDetailResponse(BaseModel):
 
 
 class SearchRequest(BaseModel):
-    """Search request schema."""
+    """Search request schema with geo-targeting for SerpAPI."""
 
     keyword: str = Field(..., description="Search keyword (2-200 characters)")
-    zipcode: Optional[str] = Field(default="60607", description="Chicago zipcode (default: 60607)")
+    zipcode: Optional[str] = Field(default=None, description="Zipcode for legacy support (not used for SerpAPI geo-targeting)")
+    
+    # Geo-targeting for SerpAPI
+    country: Optional[str] = Field(default="United States", description="Country for search results (e.g., 'India', 'United States')")
+    city: Optional[str] = Field(default=None, description="City for narrower location targeting (e.g., 'Bengaluru')")
+    
+    # Language
+    language: Optional[str] = Field(default="en", description="Language code for search interface (e.g., 'en', 'hi')")
 
 
 class SearchResponse(BaseModel):
@@ -177,7 +184,10 @@ class SearchResponse(BaseModel):
 
     success: bool
     keyword: str
-    zipcode: str
+    zipcode: Optional[str]
+    country: Optional[str]
+    city: Optional[str]
+    language: Optional[str]
     total_results: int
     results: List[ProductResponse] = Field(default_factory=list)
 
@@ -349,10 +359,44 @@ class VideosResponse(BaseModel):
     videos: List[VideoResponse] = Field(default_factory=list)
 
 
+class AIVerdictRequest(BaseModel):
+    """Request to generate AI verdict for a product."""
+    
+    enriched_data: Dict[str, Any] = Field(..., description="Full enriched product data from /product/enriched endpoint")
+    scrape_stores: bool = Field(default=False, description="Whether to scrape store pages for additional insights")
+
+
+class AIVerdictResponse(BaseModel):
+    """AI verdict response schema."""
+    
+    id: UUID = Field(..., description="Verdict ID")
+    product_id: UUID = Field(..., description="Product UUID")
+    imo_score: float = Field(..., ge=0.0, le=10.0, description="IMO Score 0-10")
+    summary: str = Field(..., description="Product verdict summary")
+    pros: List[str] = Field(default_factory=list, description="Top pros")
+    cons: List[str] = Field(default_factory=list, description="Top cons")
+    who_should_buy: Optional[str] = Field(None, description="Target customer profile")
+    who_should_avoid: Optional[str] = Field(None, description="Who should avoid this product")
+    deal_breakers: List[str] = Field(default_factory=list, description="Deal-breaker issues")
+    created_at: datetime = Field(..., description="When verdict was generated")
+    
+    class Config:
+        from_attributes = True
+
+
+class AIVerdictStatusResponse(BaseModel):
+    """AI verdict processing status response."""
+    
+    status: str = Field(..., description="Status: 'processing', 'ready', or 'error'")
+    verdict: Optional[AIVerdictResponse] = Field(None, description="Completed verdict (if ready)")
+    message: Optional[str] = Field(None, description="Status message or error details")
+
+
 class ErrorResponse(BaseModel):
     """Error response schema."""
 
     success: bool = False
     error: str
     details: Optional[dict] = None
+
 

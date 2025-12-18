@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { useSearchUrl } from '@/hooks/useSearchUrl';
+import { getCurrencySymbol } from '@/utils/currencyUtils';
 
 export interface FilterOptions {
   sortBy: 'price_low' | 'price_high' | 'imo_score' | 'rating' | 'newest' | 'most_reviewed';
@@ -33,6 +35,8 @@ const SORT_OPTIONS = [
 
 export function SearchFilters({ filters, onFiltersChange, productCount }: SearchFiltersProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const { country } = useSearchUrl();
+  const currencySymbol = getCurrencySymbol(country);
 
   const updateFilters = (updates: Partial<FilterOptions>) => {
     onFiltersChange({ ...filters, ...updates });
@@ -152,8 +156,8 @@ export function SearchFilters({ filters, onFiltersChange, productCount }: Search
                   
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium">${filters.priceRange[0].toLocaleString()}</span>
-                      <span className="text-xs font-medium">${filters.priceRange[1].toLocaleString()}</span>
+                      <span className="text-xs font-medium">{currencySymbol}{filters.priceRange[0].toLocaleString()}</span>
+                      <span className="text-xs font-medium">{currencySymbol}{filters.priceRange[1].toLocaleString()}</span>
                     </div>
                     <Slider
                       value={filters.priceRange}

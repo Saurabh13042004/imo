@@ -10,7 +10,7 @@ import { useSearchUrl } from "@/hooks/useSearchUrl";
 
 const Search = () => {
 	useParallax();
-	const { query } = useSearchUrl();
+	const { query, zipcode, country, city, language } = useSearchUrl();
 	const [hasSubmitted, setHasSubmitted] = useState(false);
 	const [page, setPage] = useState(1);
 	const [isLoading, setIsLoading] = useState(false);
@@ -24,6 +24,10 @@ const Search = () => {
 		hasPrevPage,
 	} = useProductSearch({
 		query: query,
+		zipcode: zipcode,
+		country: country,
+		city: city,
+		language: language,
 		enabled: hasSubmitted && !!query?.trim(),
 		page: page,
 	});

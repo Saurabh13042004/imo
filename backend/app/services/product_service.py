@@ -1,360 +1,85 @@
-"""Product service for detailed product information."""
+"""Product service for detailed product information using cached search results."""
 
 import logging
-import json
-import http.client
+import httpx
 from typing import Optional, Dict, Any
-from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.schemas import ProductResponse
 from app.config import settings
+from app.integrations.google_shopping import GoogleShoppingClient
+from app.services.search_service import PRODUCT_CACHE, PRODUCT_BY_SOURCE
 
 logger = logging.getLogger(__name__)
 
 
 class ProductService:
-    """Service for fetching detailed product information from various sources."""
+    """Service for fetching detailed product information from cached search results."""
 
     def __init__(self):
-        self.rapidapi_key = settings.RAPIDAPI_KEY
-        self.rapidapi_host = "amazon-data-scraper-api3.p.rapidapi.com"
+        self.serpapi_key = settings.SERPAPI_KEY
+        self.google_client = None
+        if self.serpapi_key:
+            self.google_client = GoogleShoppingClient(self.serpapi_key)
 
-    def _fetch_amazon_product_details(self, asin: str) -> Optional[Dict[str, Any]]:
-        """Fetch detailed product information from Amazon using RapidAPI.
-        
-        Args:
-            asin: Amazon Standard Identification Number
-            
-        Returns:
-            Dictionary with product details or None if fetch fails
-        """
-        try:
-            logger.info(f"Fetching Amazon product details for ASIN: {asin}")
-            
-            conn = http.client.HTTPSConnection(self.rapidapi_host)
-            
-            payload = json.dumps({
-                "source": "amazon_product",
-                "query": asin,
-                "geo_location": "90210",
-                "parse": True
-            })
-            
-            headers = {
-                'x-rapidapi-key': self.rapidapi_key,
-                'x-rapidapi-host': self.rapidapi_host,
-                'Content-Type': 'application/json'
-            }
-            
-            conn.request("POST", "/queries", payload, headers)
-            response = conn.getresponse()
-            data = response.read().decode("utf-8")
-            
-            if response.status == 200:
-                result = json.loads(data)
-                logger.info(f"Successfully fetched Amazon product details for {asin}")
-                return result
-            else:
-                logger.warning(f"Amazon API returned status {response.status} for ASIN {asin}")
-                return None
-                
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse Amazon API response: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Error fetching Amazon product details: {e}", exc_info=True)
-            return None
-        finally:
-            try:
-                conn.close()
-            except:
-                pass
-
-    def _parse_amazon_response(self, raw_data: Dict[str, Any], asin: str) -> Dict[str, Any]:
-        """Parse Amazon API response and extract relevant fields.
-        
-        Args:
-            raw_data: Raw response from Amazon API
-            asin: Amazon product ASIN
-            
-        Returns:
-            Parsed product data dictionary with all available fields
-        """
-        try:
-            # Navigate through the API response structure
-            # Structure: {"results": [{"content": {...}}]} OR {"data": [{"product": {...}}]}
-            
-            content_data = {}
-            
-            if isinstance(raw_data, dict):
-                # Try to find the content object - SerpAPI structure
-                if "results" in raw_data and isinstance(raw_data["results"], list):
-                    if raw_data["results"] and "content" in raw_data["results"][0]:
-                        content_data = raw_data["results"][0].get("content", {})
-                
-                # Fallback to data structure
-                elif "data" in raw_data:
-                    data_list = raw_data.get("data", [])
-                    if data_list and isinstance(data_list, list):
-                        content_data = data_list[0]
-            
-            # Extract fields from content object with proper fallbacks
-            parsed = {
-                "title": content_data.get("product_name") or content_data.get("title") or content_data.get("name") or "",
-                "description": content_data.get("description") or "",
-                "price": self._extract_price(content_data),
-                "image_url": self._extract_image_url(content_data),
-                "product_url": content_data.get("url") or f"https://amazon.com/dp/{asin}",
-                "rating": self._extract_rating(content_data),
-                "review_count": self._extract_review_count(content_data),
-                "brand": content_data.get("brand") or content_data.get("manufacturer") or "",
-                "category": self._extract_category(content_data),
-                "availability": self._extract_availability(content_data),
-                "asin": asin,
-                # Store complete content data for frontend rendering
-                "content": content_data,
-                "raw_data": content_data
-            }
-            
-            logger.info(f"Parsed Amazon product: {parsed.get('title', 'Unknown')[:50]}")
-            return parsed
-            
-        except Exception as e:
-            logger.error(f"Error parsing Amazon response: {e}")
-            return {
-                "title": "",
-                "description": "",
-                "price": 0,
-                "image_url": "",
-                "product_url": f"https://amazon.com/dp/{asin}",
-                "rating": 0,
-                "review_count": 0,
-                "brand": "",
-                "category": "",
-                "availability": "Unknown",
-                "asin": asin,
-                "raw_data": raw_data
-            }
-
-    def _extract_price(self, data: Dict[str, Any]) -> float:
-        """Extract price from product data - handles Amazon response structure."""
-        try:
-            # Try multiple price fields including buybox structure
-            price_candidates = [
-                data.get("price"),
-                data.get("price_buybox"),
-                data.get("current_price"),
-                data.get("selling_price"),
-                data.get("original_price"),
-            ]
-            
-            # Also check buybox array for first seller price
-            if "buybox" in data and isinstance(data["buybox"], list) and data["buybox"]:
-                price_candidates.insert(0, data["buybox"][0].get("price"))
-            
-            for price in price_candidates:
-                if price:
-                    if isinstance(price, (int, float)):
-                        return float(price)
-                    elif isinstance(price, str):
-                        # Remove currency symbols and convert
-                        clean_price = price.replace("$", "").replace(",", "").strip()
-                        try:
-                            return float(clean_price)
-                        except ValueError:
-                            continue
-            
-            return 0.0
-        except Exception as e:
-            logger.debug(f"Error extracting price: {e}")
-            return 0.0
-
-    def _extract_image_url(self, data: Dict[str, Any]) -> str:
-        """Extract primary image URL from product data - handles Amazon images array."""
-        try:
-            # Try direct image field first
-            if data.get("image_url"):
-                return data.get("image_url")
-            
-            # Check for images array (SerpAPI structure)
-            if "images" in data and isinstance(data["images"], list) and data["images"]:
-                return data["images"][0]
-            
-            # Fallback
-            return data.get("image", "")
-        except Exception as e:
-            logger.debug(f"Error extracting image URL: {e}")
-            return ""
-
-    def _extract_category(self, data: Dict[str, Any]) -> str:
-        """Extract category from product data - handles Amazon category structure."""
-        try:
-            # Skip if category is a list (Amazon structure), process it properly
-            category_data = data.get("category")
-            
-            if isinstance(category_data, list):
-                # Amazon structure: category is an array with ladder objects
-                if category_data and isinstance(category_data[0], dict):
-                    ladder = category_data[0].get("ladder", [])
-                    if ladder and isinstance(ladder, list) and len(ladder) > 0:
-                        # Get the last category from the ladder
-                        return ladder[-1].get("name", "")
-                return ""
-            elif isinstance(category_data, str):
-                # Direct string category
-                return category_data
-            
-            # Fallback to categories field
-            categories = data.get("categories")
-            if isinstance(categories, str):
-                return categories
-            
-            return ""
-        except Exception as e:
-            logger.debug(f"Error extracting category: {e}")
-            return ""
-
-    def _extract_rating(self, data: Dict[str, Any]) -> float:
-        """Extract rating from product data."""
-        try:
-            rating_candidates = [
-                data.get("rating"),
-                data.get("star_rating"),
-                data.get("stars"),
-            ]
-            
-            for rating in rating_candidates:
-                if rating:
-                    if isinstance(rating, (int, float)):
-                        return float(rating)
-                    elif isinstance(rating, str):
-                        try:
-                            return float(rating.split()[0])
-                        except ValueError:
-                            continue
-            
-            return 0.0
-        except Exception as e:
-            logger.debug(f"Error extracting rating: {e}")
-            return 0.0
-
-    def _extract_review_count(self, data: Dict[str, Any]) -> int:
-        """Extract review count from product data - handles Amazon response structure."""
-        try:
-            review_candidates = [
-                data.get("review_count"),
-                data.get("reviews_count"),
-                data.get("number_of_reviews"),
-            ]
-            
-            # Also check reviews array length (direct reviews in Amazon response)
-            if "reviews" in data and isinstance(data["reviews"], list):
-                review_candidates.insert(0, len(data["reviews"]))
-            
-            for count in review_candidates:
-                if count:
-                    if isinstance(count, int):
-                        return count
-                    elif isinstance(count, str):
-                        # Remove commas and convert
-                        clean = count.replace(",", "").strip()
-                        try:
-                            return int(clean)
-                        except ValueError:
-                            continue
-            
-            return 0
-        except Exception as e:
-            logger.debug(f"Error extracting review count: {e}")
-            return 0
-
-    def _extract_availability(self, data: Dict[str, Any]) -> str:
-        """Extract availability status from product data."""
-        try:
-            availability = data.get("availability") or data.get("in_stock")
-            
-            if availability:
-                if isinstance(availability, bool):
-                    return "In Stock" if availability else "Out of Stock"
-                elif isinstance(availability, str):
-                    if "in stock" in availability.lower():
-                        return "In Stock"
-                    elif "out of stock" in availability.lower():
-                        return "Out of Stock"
-                    else:
-                        return availability
-            
-            return "Unknown"
-        except Exception as e:
-            logger.debug(f"Error extracting availability: {e}")
-            return "Unknown"
-
-    async def get_amazon_product_details(
-        self,
-        db: AsyncSession,
-        asin: str,
-        product_title: str = "",
-        product_image: str = ""
-    ) -> Optional[ProductResponse]:
-        """Get detailed product information from Amazon.
+    async def get_product_by_id(self, db: AsyncSession, product_id: str) -> Optional[ProductResponse]:
+        """Get product by UUID from search cache.
         
         Args:
             db: Database session
-            asin: Amazon product ASIN
-            product_title: Optional title from search results
-            product_image: Optional image from search results
+            product_id: Product UUID
             
         Returns:
-            ProductResponse with detailed information or None if fetch fails
+            ProductResponse if found in cache, None otherwise
         """
         try:
-            # Fetch raw data from Amazon API
-            raw_data = self._fetch_amazon_product_details(asin)
-            
-            if not raw_data:
-                logger.warning(f"Failed to fetch Amazon product data for ASIN: {asin}")
+            product = PRODUCT_CACHE.get(product_id)
+            if product:
+                logger.info(f"Retrieved product from cache: {product_id}")
+                return product
+            else:
+                logger.warning(f"Product not found in cache: {product_id}")
                 return None
-            
-            # Parse the response
-            parsed = self._parse_amazon_response(raw_data, asin)
-            
-            # Create ProductResponse, using fallback values from search results
-            from uuid import uuid4
-            from datetime import datetime
-            
-            now = datetime.utcnow()
-            
-            product = ProductResponse(
-                id=str(uuid4()),
-                title=parsed.get("title") or product_title or "Unknown Product",
-                description=parsed.get("description") or "",
-                price=parsed.get("price") or 0,
-                image_url=parsed.get("image_url") or product_image or "https://via.placeholder.com/500",
-                url=parsed.get("product_url") or f"https://amazon.com/dp/{asin}",
-                source="amazon",
-                source_id=asin,
-                rating=parsed.get("rating") or 0,
-                review_count=parsed.get("review_count") or 0,
-                brand=parsed.get("brand") or "",
-                category=parsed.get("category") or "",
-                availability=parsed.get("availability") or "Unknown",
-                asin=asin,
-                created_at=now,
-                updated_at=now
-            )
-            
-            logger.info(f"Created ProductResponse for Amazon ASIN: {asin}")
-            return product
-            
         except Exception as e:
-            logger.error(f"Error getting Amazon product details: {e}", exc_info=True)
+            logger.error(f"Error getting product by ID: {e}")
+            return None
+
+    async def get_product_by_source(
+        self,
+        db: AsyncSession,
+        source: str,
+        source_id: str
+    ) -> Optional[ProductResponse]:
+        """Get product by source and source_id from cache.
+        
+        Args:
+            db: Database session
+            source: Product source (retailer name)
+            source_id: Source-specific product ID
+            
+        Returns:
+            ProductResponse if found in cache, None otherwise
+        """
+        try:
+            cache_key = f"{source}:{source_id}"
+            product = PRODUCT_BY_SOURCE.get(cache_key)
+            if product:
+                logger.info(f"Retrieved product from cache: {cache_key}")
+                return product
+            else:
+                logger.warning(f"Product not found in cache: {cache_key}")
+                return None
+        except Exception as e:
+            logger.error(f"Error getting product by source: {e}")
             return None
 
     async def _fetch_serpapi_enrichment(
         self, 
         product_title: str,
-        asin: str = ""
+        asin: str = "",
+        location: Optional[str] = None,
+        country: Optional[str] = None,
+        language: str = "en"
     ) -> Optional[Dict[str, Any]]:
         """Fetch enrichment data from SerpAPI's immersive product endpoint.
         
@@ -364,34 +89,63 @@ class ProductService:
         3. Call google_immersive_product endpoint using serpapi_link for rich enrichment
         4. Returns: prices (stores), external reviews, content, videos
         
-        This is ENRICHMENT ONLY - ASIN from Amazon is the source of truth.
-        
         Args:
             product_title: Product title to search
-            asin: Optional ASIN for reference
+            asin: Optional ASIN for reference (deprecated - not used)
+            location: Optional location string for location-based results
+            country: Country name for geo-targeting
+            language: Language code
             
         Returns:
             SerpAPI immersive product response with cross-store prices, reviews, videos, etc.
         """
         try:
-            if not settings.SERPAPI_KEY:
+            if not self.serpapi_key:
                 logger.debug("SerpAPI key not configured, skipping enrichment")
                 return None
             
-            logger.info(f"[SerpAPI] Enrichment for: {product_title[:60]}")
+            logger.info(
+                f"[ProductService] Enrichment for product:\\n"
+                f"  Title: {product_title[:60]}\\n"
+                f"  Country: {country}\\n"
+                f"  Location: {location}\\n"
+                f"  Language: {language}"
+            )
             
-            import httpx
-            from urllib.parse import urlparse, parse_qs, urlencode
+            from urllib.parse import urlparse, parse_qs
+            from app.utils.geo import get_country_config
+            
+            # Determine location and country
+            final_country = country or "United States"
+            final_location = location or final_country
+            
+            # Get geo config
+            geo_config = get_country_config(final_country)
             
             async with httpx.AsyncClient(timeout=20) as client:
                 # STEP 1: Search for product to find in immersive_products
-                logger.info(f"[SerpAPI] Step 1: Initial search for product")
+                logger.info(
+                    f"[ProductService.Enrichment] Step 1: Initial search for product\\n"
+                    f"  Location: {final_location}\\n"
+                    f"  Country: {final_country}\\n"
+                    f"  GL: {geo_config['gl']}\\n"
+                    f"  Domain: {geo_config['google_domain']}"
+                )
                 search_params = {
-                    "api_key": settings.SERPAPI_KEY,
-                    "engine": "google",
+                    "api_key": self.serpapi_key,
+                    "engine": "google_shopping",
                     "q": f"{product_title}",  # Search by title
-                    "type": "shopping"
+                    "location": final_location,
+                    "gl": geo_config["gl"],
+                    "hl": language,
+                    "google_domain": geo_config["google_domain"]
                 }
+                
+                logger.info(
+                    f"[ProductService.Enrichment] Request params:\\n"
+                    f"  URL: https://serpapi.com/search\\n"
+                    f"  Params: {{{', '.join(f'{k}: {v}' for k, v in search_params.items() if k != 'api_key')}}}"
+                )
                 
                 search_response = await client.get("https://serpapi.com/search", params=search_params)
                 
@@ -408,13 +162,12 @@ class ProductService:
                     return None
                 
                 # Extract key words from Amazon title for matching
-                # E.g., "Sony WH-1000XM5 Premium Noise Canceling Headphones" -> match by key terms
                 title_words = product_title.split()[:5]  # First 5 words usually identify the product
                 
                 matching_product = None
                 for product in immersive_products:
                     product_title_lower = product.get("title", "").lower()
-                    # Check if product contains key words from Amazon title
+                    # Check if product contains key words from title
                     if all(word.lower() in product_title_lower for word in title_words[:3]):
                         matching_product = product
                         logger.info(f"[SerpAPI] Found matching product: {product.get('title', '')[:60]}")
@@ -425,7 +178,6 @@ class ProductService:
                     return None
                 
                 # STEP 3: Call immersive product endpoint using serpapi_link
-                # The serpapi_link is URL-encoded, we need to properly handle it
                 serpapi_link = matching_product.get("serpapi_link")
                 if not serpapi_link:
                     logger.warning("[SerpAPI] No serpapi_link found in matching product")
@@ -433,13 +185,9 @@ class ProductService:
                 
                 logger.info(f"[SerpAPI] Step 2: Fetching immersive product enrichment via serpapi_link")
                 
-                # Build immersive product params properly
-                # Extract page_token from the serpapi_link
                 try:
                     parsed_url = urlparse(serpapi_link)
                     query_params = parse_qs(parsed_url.query)
-                    
-                    # Extract the page_token (it's a list in parse_qs)
                     page_token = query_params.get('page_token', [None])[0]
                     
                     if not page_token:
@@ -448,9 +196,9 @@ class ProductService:
                     
                     # Build proper request with decoded page_token
                     immersive_params = {
-                        "api_key": settings.SERPAPI_KEY,
+                        "api_key": self.serpapi_key,
                         "engine": "google_immersive_product",
-                        "page_token": page_token  # httpx will properly encode this
+                        "page_token": page_token
                     }
                     
                     immersive_response = await client.get("https://serpapi.com/search", params=immersive_params)
@@ -463,15 +211,9 @@ class ProductService:
                     immersive_data = immersive_response.json()
                     logger.info(f"[SerpAPI] Successfully fetched immersive product enrichment")
                     
-                    # Return enriched data with store prices, reviews, videos, content
-                    # The immersive product contains:
-                    # - stores: array of cross-store prices and offers
-                    # - user_reviews: array of reviews from various sources (eBay, Amazon, etc)
-                    # - ratings: review distribution (1-5 stars)
-                    # - about_the_product: features and specs
                     return {
                         "immersive_product": immersive_data,
-                        "product_results": immersive_data.get("product_results", {}),  # Flatten for easy access
+                        "product_results": immersive_data.get("product_results", {}),
                         "source": "serpapi_immersive",
                         "matched_product": matching_product,
                         "enrichment_ready": True
@@ -485,3 +227,38 @@ class ProductService:
             logger.error(f"[SerpAPI] Error fetching enrichment: {e}", exc_info=True)
             return None
 
+    async def get_amazon_product_details(
+        self,
+        db: AsyncSession,
+        asin: str,
+        product_title: Optional[str] = None,
+        product_image: Optional[str] = None,
+        zipcode: Optional[str] = None
+    ) -> Optional[ProductResponse]:
+        """Get product details from cache by ASIN.
+        
+        NOTE: This is a compatibility wrapper. Products should be retrieved from
+        search cache first. This returns None if product is not in cache.
+        
+        Args:
+            db: Database session
+            asin: Amazon Standard Identification Number (no longer used)
+            product_title: Optional fallback title
+            product_image: Optional fallback image
+            zipcode: Optional location parameter
+            
+        Returns:
+            ProductResponse from cache or None
+        """
+        logger.info(f"[DEPRECATED] get_amazon_product_details called for ASIN: {asin}")
+        logger.info("Products should be retrieved from search results cache instead")
+        
+        # Try to find in cache by ASIN if it was cached
+        cache_key = f"amazon:{asin}"
+        product = PRODUCT_BY_SOURCE.get(cache_key)
+        
+        if product:
+            return product
+        
+        logger.warning(f"Product not found for ASIN: {asin} - must use cached search results")
+        return None

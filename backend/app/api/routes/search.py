@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.schemas import SearchRequest, SearchResponse, ErrorResponse
 from app.services import SearchService
 from app.api.dependencies import get_db
+from app.config import settings
 from app.utils.validators import validate_search_query
 
 logger = logging.getLogger(__name__)
@@ -26,10 +27,13 @@ async def search_products(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Search for products on Amazon.
+    Search for products globally with geo-targeting.
 
     - **keyword**: Search keyword (required, 2-200 characters)
-    - **zipcode**: Chicago zipcode (default: 60607)
+    - **country**: Country for search results (default: "United States")
+    - **city**: Optional city for narrower location targeting
+    - **language**: Language code for search interface (default: "en")
+    - **zipcode**: Legacy field, not used for SerpAPI geo-targeting
     """
     try:
         # Validate keyword
@@ -39,10 +43,14 @@ async def search_products(
                 detail="Invalid search keyword. Must be 2-200 characters."
             )
 
-        # Use default zipcode if not provided
-        zipcode = request.zipcode or "60607"
-
-        logger.info(f"Search request: keyword={request.keyword}, zipcode={zipcode}")
+        logger.info(
+            f"[SearchRoute] Search request:\\n"
+            f"  Keyword: {request.keyword}\\n"
+            f"  Country: {request.country}\\n"
+            f"  City: {request.city}\\n"
+            f"  Language: {request.language}\\n"
+            f"  Zipcode: {request.zipcode} (legacy, not used)"
+        )
 
         # Perform search
         results, total_count = await search_service.search_all_sources(db, request)
@@ -50,7 +58,10 @@ async def search_products(
         return SearchResponse(
             success=True,
             keyword=request.keyword,
-            zipcode=zipcode,
+            zipcode=request.zipcode,
+            country=request.country,
+            city=request.city,
+            language=request.language,
             total_results=total_count,
             results=results
         )
@@ -58,7 +69,7 @@ async def search_products(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Search error: {e}", exc_info=True)
+        logger.error(f"[SearchRoute] Search error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Search failed. Please try again."

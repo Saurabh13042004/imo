@@ -5,25 +5,27 @@ import { useAnalytics } from "@/hooks/useAnalytics";
 import { useParams } from "react-router-dom";
 import { ProductSource } from "./ProductSource";
 import { sanitizeHtml, isHtmlContent } from "@/utils/htmlSanitizer";
+import { useSearchUrl } from "@/hooks/useSearchUrl";
+import { formatPriceIntl } from "@/utils/currencyUtils";
 
 interface ProductInfoProps {
   title: string;
   price: number;
   imoScore?: number;
+  aiVerdictScore?: number;
+  verdictStatus?: "idle" | "processing" | "ready" | "error";
   description?: string;
   productUrl: string;
   source: 'Amazon' | 'Walmart' | 'Home Depot' | 'Google';
 }
 
-export const ProductInfo = ({ title, price, imoScore, description, productUrl, source }: ProductInfoProps) => {
+export const ProductInfo = ({ title, price, imoScore, aiVerdictScore, verdictStatus, description, productUrl, source }: ProductInfoProps) => {
   const { productId } = useParams<{ productId: string }>();
   const { trackAffiliateClick } = useAnalytics();
+  const { country } = useSearchUrl();
 
   const formatPrice = (price: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD'
-    }).format(price);
+    return formatPriceIntl(price, country || 'United States');
   };
 
   const getAffiliateUrl = (url: string, source: string): string => {
@@ -61,14 +63,29 @@ export const ProductInfo = ({ title, price, imoScore, description, productUrl, s
           {formatPrice(price)}
         </p>
 
-        {imoScore && (
+        {/* AI Verdict Score - Priority over basic IMO score */}
+        {aiVerdictScore !== undefined ? (
+          <div className="flex items-center space-x-2 mb-6">
+            {verdictStatus === "processing" ? (
+              <Badge variant="secondary" className="font-semibold glass-card text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-900 text-lg px-4 py-2 animate-pulse">
+                <Star className="h-4 w-4 mr-2" />
+                🤖 IMO Score Loading...
+              </Badge>
+            ) : (
+              <Badge variant="secondary" className="font-semibold glass-card bg-gradient-to-r from-purple-500/10 to-blue-500/10 text-purple-600 dark:text-purple-400 border-purple-200 dark:border-purple-900 text-lg px-4 py-2">
+                <Star className="h-4 w-4 mr-2" />
+                IMO Score: {aiVerdictScore.toFixed(1)}/10
+              </Badge>
+            )}
+          </div>
+        ) : imoScore ? (
           <div className="flex items-center space-x-2 mb-6">
             <Badge variant="secondary" className="font-semibold glass-card text-primary border-primary/20 text-lg px-4 py-2">
               <Star className="h-4 w-4 mr-2" />
-              IMO Score: {imoScore}/10
+              Rating: {imoScore}/10
             </Badge>
           </div>
-        )}
+        ) : null}
 
         {description && (
           <div className="text-muted-foreground text-lg leading-relaxed mb-8 prose prose-slate dark:prose-invert max-w-none">

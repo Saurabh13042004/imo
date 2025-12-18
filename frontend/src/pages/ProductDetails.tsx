@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { useParallax } from "@/hooks/useParallax";
+import { useSearchUrl } from "@/hooks/useSearchUrl";
+import { useAIVerdict } from "@/hooks/useAIVerdict";
+import { formatPriceWithCurrency } from "@/utils/currencyUtils";
 // import { useProductBasic, useProductReviews, useProductVideos } from "@/hooks/useProductDetails";
 
 import { ProductLikeButton } from "@/components/product/ProductLikeButton";
@@ -25,6 +28,7 @@ import { useSearchAccess } from "@/hooks/useSearchAccess";
 const ProductDetails = () => {
   useParallax();
   const { id: productId } = useParams<{ id: string }>();
+  const { zipcode, country } = useSearchUrl();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);
   const [enrichedData, setEnrichedData] = useState<any>(null);
@@ -32,6 +36,12 @@ const ProductDetails = () => {
   const [refreshReviews, setRefreshReviews] = useState(0);
   const { toast } = useToast();
   const { trackProductView } = useAnalytics();
+
+  // Use AI Verdict hook for all products (not Amazon-specific)
+  const { verdict: aiVerdict, status: verdictStatus } = useAIVerdict(
+    productId,
+    enrichedData
+  );
 
   // Validate productId early
   const isValidProductId = productId && 
@@ -89,110 +99,57 @@ const ProductDetails = () => {
     }
   }, [isValidProductId, productId, toast, trackProductView]);
 
-  // Fetch enriched data for all products
+  // Fetch enriched data for all products (product-agnostic)
   useEffect(() => {
     if (!product || !productId) return;
     
-    const isAmazon = product.source?.toLowerCase() === "amazon" || 
-                     product.source?.toLowerCase() === "amazon.com";
-    
-    // For Amazon products - use INTELLIGENT endpoint with Gemini analysis
-    if (isAmazon) {
-      const asin = (product as any).asin || (product as any).source_id;
-      
-      if (!asin) {
-        console.log("Amazon product detected but no ASIN found");
-        setEnrichmentLoading(false);
-        return;
-      }
-
-      const fetchIntelligentProductData = async () => {
-        try {
-          setEnrichmentLoading(true);
-          console.log(`Fetching intelligent product analysis for Amazon product: ${asin}`);
-          
-          const response = await fetch(
-            `/api/v1/product/intelligent/${asin}`,
-            {
-              method: "GET",
-              headers: {
-                "Content-Type": "application/json"
-              }
-            }
-          );
-
-          if (!response.ok) {
-            console.warn(`Failed to fetch intelligent product data: ${response.status}`);
-            return;
-          }
-
-          const data = await response.json();
-          console.log("Intelligent product data received (AmazonProductAnalysis):", data);
-          
-          if (data) {
-            // The response is now AmazonProductAnalysis with unified schema
-            // All data is at the root level for clean access
-            setEnrichedData(data);
-          }
-        } catch (error) {
-          console.error("Error fetching intelligent product data:", error);
-        } finally {
+    const fetchEnrichedData = async () => {
+      try {
+        setEnrichmentLoading(true);
+        console.log(`Fetching enriched product data for: ${productId}`);
+        
+        // For all products - fetch from enriched endpoint
+        const immersiveApiLink = (product as any).immersive_product_api_link;
+        
+        if (!immersiveApiLink) {
+          console.log("No immersive_product_api_link found, using base product data");
           setEnrichmentLoading(false);
+          return;
         }
-      };
 
-      fetchIntelligentProductData();
-    } else {
-      // For non-Amazon products with immersive link
-      const immersiveApiLink = (product as any).immersive_product_api_link;
-      
-      if (!immersiveApiLink) {
-        console.log("No immersive_product_api_link found, using base product data");
+        const response = await fetch(
+          `/api/v1/product/enriched/${productId}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              immersive_api_link: immersiveApiLink
+            })
+          }
+        );
+
+        if (!response.ok) {
+          console.warn(`Failed to fetch enriched data: ${response.status}`);
+          return;
+        }
+
+        const data = await response.json();
+        console.log("Enriched product data received:", data);
+        
+        if (data) {
+          setEnrichedData(data);
+          console.log("Enriched data loaded successfully");
+        }
+      } catch (error) {
+        console.error("Error fetching enriched product data:", error);
+      } finally {
         setEnrichmentLoading(false);
-        return;
       }
+    };
 
-      const fetchEnrichedData = async () => {
-        try {
-          setEnrichmentLoading(true);
-          console.log(`Fetching enriched data for ${product.source} product: ${productId}`);
-          
-          const response = await fetch(
-            `/api/v1/product/enriched/${productId}`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json"
-              },
-              body: JSON.stringify({
-                immersive_api_link: immersiveApiLink
-              })
-            }
-          );
-
-          if (!response.ok) {
-            console.warn(`Failed to fetch enriched data: ${response.status}`);
-            return;
-          }
-
-          const data = await response.json();
-          console.log("Enriched product data:", data);
-          
-          // Store entire enriched response (with immersive_data nested)
-          if (data) {
-            setEnrichedData(data);
-            console.log("User reviews available:", data.immersive_data?.product_results?.user_reviews?.length || 0);
-            console.log("User reviews data:", data.immersive_data?.product_results?.user_reviews);
-          }
-        } catch (error) {
-          console.error("Error fetching enriched product data:", error);
-        } finally {
-          setEnrichmentLoading(false);
-        }
-      };
-
-      fetchEnrichedData();
-    }
+    fetchEnrichedData();
   }, [product, productId]);
 
   // Handle invalid product ID
@@ -272,6 +229,8 @@ const ProductDetails = () => {
                         title={product.title}
                         price={product.price}
                         imoScore={product.imo_score}
+                        aiVerdictScore={aiVerdict?.imo_score}
+                        verdictStatus={verdictStatus}
                         description={enrichedData?.bullet_points ? enrichedData.bullet_points.split('\n')[0] : (enrichedData?.description || product.description)}
                         productUrl={product.product_url}
                         source={product.source as any}
@@ -293,8 +252,8 @@ const ProductDetails = () => {
               {/* Reviews and Videos Sections - Ready for API integration */}
               {product && (
                 <div className="space-y-8 border-t border-border/50 pt-8">
-                  {/* AI Verdict Section (Amazon products only) */}
-                  {enrichedData?.analysis && !enrichmentLoading && (
+                  {/* AI Verdict Section (for ALL products) */}
+                  {aiVerdict && verdictStatus === "ready" && (
                     <motion.div
                       initial={{ y: 20, opacity: 0 }}
                       animate={{ y: 0, opacity: 1 }}
@@ -304,40 +263,40 @@ const ProductDetails = () => {
                       <div className="flex items-start justify-between">
                         <div>
                           <h2 className="text-2xl font-bold text-foreground mb-2">
-                            AI Verdict
+                            IMO AI Verdict
                           </h2>
                           <p className="text-muted-foreground">
-                            {enrichedData.analysis.summary}
+                            {aiVerdict.summary}
                           </p>
                         </div>
                         <div className="text-right">
                           <div className="text-4xl font-bold text-primary">
-                            {enrichedData.analysis.verdict_score?.toFixed(1) || "N/A"}
+                            {aiVerdict.imo_score?.toFixed(1) || "N/A"}
                           </div>
                           <p className="text-xs text-muted-foreground">out of 10</p>
                         </div>
                       </div>
 
-                      {enrichedData.analysis.who_should_buy && (
+                      {aiVerdict.who_should_buy && (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-border/30">
                           <div>
                             <p className="text-sm font-semibold text-green-600 dark:text-green-400 mb-1">✓ Who should buy</p>
-                            <p className="text-sm text-muted-foreground">{enrichedData.analysis.who_should_buy}</p>
+                            <p className="text-sm text-muted-foreground">{aiVerdict.who_should_buy}</p>
                           </div>
-                          {enrichedData.analysis.who_should_avoid && (
+                          {aiVerdict.who_should_avoid && (
                             <div>
                               <p className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-1">✗ Who should avoid</p>
-                              <p className="text-sm text-muted-foreground">{enrichedData.analysis.who_should_avoid}</p>
+                              <p className="text-sm text-muted-foreground">{aiVerdict.who_should_avoid}</p>
                             </div>
                           )}
                         </div>
                       )}
 
-                      {enrichedData.analysis.deal_breakers && enrichedData.analysis.deal_breakers.length > 0 && (
+                      {aiVerdict.deal_breakers && aiVerdict.deal_breakers.length > 0 && (
                         <div className="pt-4 border-t border-border/30">
                           <p className="text-sm font-semibold text-red-600 dark:text-red-400 mb-2">⚠ Deal Breakers</p>
                           <ul className="text-sm text-muted-foreground space-y-1">
-                            {enrichedData.analysis.deal_breakers.map((issue: string, idx: number) => (
+                            {aiVerdict.deal_breakers.map((issue: string, idx: number) => (
                               <li key={idx}>• {issue}</li>
                             ))}
                           </ul>
@@ -345,8 +304,20 @@ const ProductDetails = () => {
                       )}
                     </motion.div>
                   )}
+
+                  {/* AI Verdict Processing State */}
+                  {verdictStatus === "processing" && !aiVerdict && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="flex items-center justify-center py-12 gap-3 bg-gradient-to-br from-primary/5 to-secondary/5 rounded-lg border border-border/30 p-6"
+                    >
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      <p className="text-sm text-muted-foreground">AI is analyzing this product...</p>
+                    </motion.div>
+                  )}
                   
-                  {/* Detailed Product Information - For Amazon Products */}
+                  {/* Detailed Product Information - For Products with Enriched Data */}
                   {enrichedData && !enrichmentLoading && (
                     <motion.div
                       initial={{ y: 20, opacity: 0 }}
@@ -374,7 +345,7 @@ const ProductDetails = () => {
                                 className="p-4 bg-background rounded-lg border border-border/30"
                               >
                                 <p className="font-medium text-sm mb-2">Amazon.com</p>
-                                <p className="text-lg font-bold text-primary">${offer.price}</p>
+                                <p className="text-lg font-bold text-primary">{formatPriceWithCurrency(offer.price, country)}</p>
                                 <p className="text-xs text-muted-foreground mt-2">{offer.stock}</p>
                                 {offer.delivery_details && (
                                   <ul className="text-xs text-muted-foreground mt-2 space-y-1">
@@ -403,7 +374,7 @@ const ProductDetails = () => {
                                 className="p-4 bg-background rounded-lg border border-border/30 hover:border-primary/50 transition-colors"
                               >
                                 <p className="font-medium text-sm mb-2">{store.name}</p>
-                                <p className="text-lg font-bold text-primary">${store.extracted_price || store.price}</p>
+                                <p className="text-lg font-bold text-primary">{formatPriceWithCurrency(store.extracted_price || store.price, country)}</p>
                                 {store.details_and_offers && (
                                   <ul className="text-xs text-muted-foreground mt-2 space-y-1">
                                     {store.details_and_offers.slice(0, 2).map((offer: string, i: number) => (
@@ -490,7 +461,7 @@ const ProductDetails = () => {
                                 className="p-4 bg-background rounded-lg border border-border/30 hover:border-primary/50 transition-colors"
                               >
                                 <p className="font-medium text-sm mb-2">{store.name}</p>
-                                <p className="text-lg font-bold text-primary">${store.extracted_price || store.price}</p>
+                                <p className="text-lg font-bold text-primary">{formatPriceWithCurrency(store.extracted_price || store.price, country)}</p>
                                 {store.details_and_offers && (
                                   <ul className="text-xs text-muted-foreground mt-2 space-y-1">
                                     {store.details_and_offers.slice(0, 2).map((offer: string, i: number) => (
