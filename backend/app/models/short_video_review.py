@@ -1,7 +1,7 @@
-from sqlalchemy import Column, String, Integer, Float, DateTime, UUID, Index
+from sqlalchemy import Column, String, Integer, Float, DateTime, UUID, Index, ForeignKey
 from datetime import datetime
 import uuid
-from app.database import Base
+from app.models import Base
 
 
 class ShortVideoReview(Base):
