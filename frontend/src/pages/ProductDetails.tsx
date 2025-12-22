@@ -8,6 +8,8 @@ import { useAnalytics } from "@/hooks/useAnalytics";
 import { useParallax } from "@/hooks/useParallax";
 import { useSearchUrl } from "@/hooks/useSearchUrl";
 import { useAIVerdict } from "@/hooks/useAIVerdict";
+import { useCommunityReviews } from "@/hooks/useCommunityReviews";
+import { useStoreReviews } from "@/hooks/useStoreReviews";
 import { formatPriceWithCurrency } from "@/utils/currencyUtils";
 // import { useProductBasic, useProductReviews, useProductVideos } from "@/hooks/useProductDetails";
 
@@ -20,6 +22,7 @@ import { ProductReviews } from "@/components/product/ProductReviews";
 import { ShortVideoReviews } from "@/components/product/ShortVideoReviews";
 // import { ProductReviewsSkeleton } from "@/components/product/ProductReviewsSkeleton";
 import { VideoReviews } from "@/components/product/VideoReviews";
+
 // import { YouTubeVideosSkeleton } from "@/components/product/YouTubeVideosSkeleton";
 import { SearchAccessGate } from "@/components/product/SearchAccessGate";
 import { Product } from "@/types/search";
@@ -34,6 +37,7 @@ const ProductDetails = () => {
   const [loading, setLoading] = useState(true);
   const [enrichedData, setEnrichedData] = useState<any>(null);
   const [enrichmentLoading, setEnrichmentLoading] = useState(false);
+  const [googleReviews, setGoogleReviews] = useState<any>(null);
   const [refreshReviews, setRefreshReviews] = useState(0);
   const { toast } = useToast();
   const { trackProductView } = useAnalytics();
@@ -43,6 +47,88 @@ const ProductDetails = () => {
     productId,
     enrichedData
   );
+
+  // Memoize store URLs - don't wait for enrichedData to fetch from stores
+  const storeUrls = enrichedData?.immersive_data?.product_results?.stores
+    ?.filter((s: any) => s.link)
+    ?.map((s: any) => s.link) || [];
+
+  // Use Community Reviews hook - start immediately, don't wait for enrichedData
+  const communityReviews = useCommunityReviews(
+    product?.title || '',
+    product?.brand
+  );
+
+  // Use Store Reviews hook - start immediately with empty URLs, update when enrichedData arrives
+  const storeReviews = useStoreReviews(
+    product?.title || '',
+    storeUrls.length > 0 ? storeUrls : undefined
+  );
+
+  // Fetch Google Shopping reviews - independent, non-blocking
+  // This runs separately and appends results without blocking other APIs
+  useEffect(() => {
+    if (!product?.product_url || !product?.title) return;
+
+    // Don't wait for enrichedData - start fetching immediately
+    const fetchGoogleReviews = async () => {
+      try {
+        // Don't set loading - just fetch in background
+        const response = await fetch('/api/v1/reviews/google', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            product_name: product.title,
+            google_shopping_url: product.product_url || ''
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Just set the data - don't show loading state
+          setGoogleReviews(data);
+          // Show toast notification when reviews arrive
+          if (data?.reviews?.length > 0) {
+            toast({
+              title: "IMO AI Just added new reviews",
+              description: `${data.reviews.length} Google Shopping reviews loaded`,
+              variant: "default",
+              className: "fixed bottom-4 left-4"
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching Google Shopping reviews:', error);
+        // Silently fail - no blocking, no error state
+      }
+    };
+
+    fetchGoogleReviews();
+  }, [product?.product_url, product?.title, toast]);
+
+  // Show notification when community reviews arrive
+  useEffect(() => {
+    if (communityReviews.reviews && communityReviews.reviews.length > 0 && communityReviews.status === 'loaded') {
+      toast({
+        title: "IMO AI Just added new reviews",
+        description: `${communityReviews.reviews.length} community reviews loaded`,
+        variant: "default",
+        className: "fixed bottom-4 left-4"
+      });
+    }
+  }, [communityReviews.reviews?.length, communityReviews.status, toast]);
+
+  // Show notification when store reviews arrive
+  useEffect(() => {
+    if (storeReviews.reviews && storeReviews.reviews.length > 0 && storeReviews.status === 'loaded') {
+      toast({
+        title: "IMO AI Just added new reviews",
+        description: `${storeReviews.reviews.length} store reviews loaded`,
+        variant: "default",
+        className: "fixed bottom-4 left-4"
+      });
+    }
+  }, [storeReviews.reviews?.length, storeReviews.status, toast]);
 
   // Validate productId early
   const isValidProductId = productId && 
@@ -569,7 +655,7 @@ const ProductDetails = () => {
                     />
                   )}
 
-                  {/* User Reviews Section - Combined Amazon + External */}
+                  {/* User Reviews Section - Combined All Sources */}
                   <ProductReviews 
                     productId={productId || ""}
                     reviews={[
@@ -614,9 +700,51 @@ const ProductDetails = () => {
                         positive_feedback: 0,
                         negative_feedback: 0,
                         source: review.source || "SerpAPI"
+                      })) || []),
+                      // Community reviews (Reddit + Forums)
+                      ...(communityReviews.reviews?.map((review: any) => ({
+                        id: `community-${review.source}-${review.text?.substring(0, 20)}`,
+                        external_review_id: `community-${review.source}`,
+                        reviewer_name: review.author || "Community Member",
+                        rating: 0,
+                        title: `${review.source} Discussion`,
+                        review_text: review.text,
+                        verified_purchase: false,
+                        review_date: new Date().toISOString(),
+                        positive_feedback: 0,
+                        negative_feedback: 0,
+                        source: review.source
+                      })) || []),
+                      // Store reviews
+                      ...(storeReviews.reviews?.map((review: any) => ({
+                        id: `store-${review.store}-${review.text?.substring(0, 20)}`,
+                        external_review_id: `store-${review.store}`,
+                        reviewer_name: review.author || "Store Reviewer",
+                        rating: review.rating || 0,
+                        title: `Review from ${review.store}`,
+                        review_text: review.text,
+                        verified_purchase: false,
+                        review_date: new Date().toISOString(),
+                        positive_feedback: 0,
+                        negative_feedback: 0,
+                        source: review.store || "Store"
+                      })) || []),
+                      // Google Shopping reviews
+                      ...(googleReviews?.reviews?.map((review: any) => ({
+                        id: `google-${review.reviewer_name}-${review.title}`,
+                        external_review_id: `google-${review.reviewer_name}`,
+                        reviewer_name: review.reviewer_name,
+                        rating: review.rating,
+                        title: review.title || "Google Shopping Review",
+                        review_text: review.text,
+                        verified_purchase: false,
+                        review_date: review.date || new Date().toISOString(),
+                        positive_feedback: 0,
+                        negative_feedback: 0,
+                        source: "Google Shopping"
                       })) || [])
                     ]}
-                    reviewsSummary={undefined}
+                    reviewsSummary={googleReviews?.summary || undefined}
                     refreshReviews={refreshReviews}
                     onRefreshReviews={() => setRefreshReviews(prev => prev + 1)}
                     isLoadingReviews={enrichmentLoading}

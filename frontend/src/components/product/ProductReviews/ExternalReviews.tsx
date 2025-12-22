@@ -23,7 +23,7 @@ interface ExternalReview {
 interface ExternalReviewsProps {
   productId: string;
   reviews?: ExternalReview[];
-  reviewsSummary?: string;
+  reviewsSummary?: any;
   isLoading?: boolean;
 }
 
@@ -173,7 +173,28 @@ export const ExternalReviews = ({ productId, reviews = [], reviewsSummary, isLoa
           {reviewsSummary && (
             <div className="bg-muted/50 rounded-lg p-4">
               <h4 className="font-medium mb-2">Review Summary</h4>
-              <p className="text-sm text-muted-foreground">{reviewsSummary}</p>
+              {typeof reviewsSummary === 'string' ? (
+                <p className="text-sm text-muted-foreground">{reviewsSummary}</p>
+              ) : (
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  {reviewsSummary.average_rating && (
+                    <p><strong>Average Rating:</strong> {reviewsSummary.average_rating}/5</p>
+                  )}
+                  {reviewsSummary.overall_sentiment && (
+                    <p><strong>Sentiment:</strong> {reviewsSummary.overall_sentiment.replace(/_/g, ' ').toUpperCase()}</p>
+                  )}
+                  {reviewsSummary.common_praises && reviewsSummary.common_praises.length > 0 && (
+                    <div>
+                      <strong>Common Praises:</strong> {reviewsSummary.common_praises.join(', ')}
+                    </div>
+                  )}
+                  {reviewsSummary.common_complaints && reviewsSummary.common_complaints.length > 0 && (
+                    <div>
+                      <strong>Common Complaints:</strong> {reviewsSummary.common_complaints.join(', ')}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

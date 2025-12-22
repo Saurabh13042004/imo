@@ -25,12 +25,32 @@ LOGGING_CONFIG = {
         "detailed": {
             "format": "%(asctime)s - %(name)s - %(levelname)s - %(funcName)s:%(lineno)d - %(message)s",
         },
+        "debug": {
+            "format": "[%(levelname)s] %(asctime)s | %(name)s | %(funcName)s:%(lineno)d | %(message)s",
+        },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "default",
+            "formatter": "detailed" if settings.LOG_LEVEL == "DEBUG" else "default",
             "level": settings.LOG_LEVEL,
+        },
+    },
+    "loggers": {
+        "app": {
+            "level": settings.LOG_LEVEL,
+            "handlers": ["console"],
+            "propagate": False,
+        },
+        "app.services.google_review_service": {
+            "level": "DEBUG" if settings.LOG_LEVEL != "INFO" else settings.LOG_LEVEL,
+            "handlers": ["console"],
+            "propagate": False,
+        },
+        "app.api.routes.reviews": {
+            "level": "DEBUG" if settings.LOG_LEVEL != "INFO" else settings.LOG_LEVEL,
+            "handlers": ["console"],
+            "propagate": False,
         },
     },
     "root": {

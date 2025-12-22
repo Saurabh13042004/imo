@@ -7,7 +7,7 @@ import { ExternalReviews } from "@/components/product/ProductReviews/ExternalRev
 interface ProductReviewsProps {
   productId: string;
   reviews?: any[];
-  reviewsSummary?: string;
+  reviewsSummary?: any;
   refreshReviews: number;
   onRefreshReviews: () => void;
   isLoadingReviews?: boolean;

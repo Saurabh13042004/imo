@@ -46,6 +46,11 @@ class Product(Base):
     # Relationships
     reviews = relationship("Review", back_populates="product", cascade="all, delete-orphan")
     videos = relationship("Video", back_populates="product", cascade="all, delete-orphan")
+    affiliate_clicks = relationship("AffiliateClick", back_populates="product", cascade="all, delete-orphan")
+    price_comparisons = relationship("PriceComparison", back_populates="product", cascade="all, delete-orphan")
+    product_likes = relationship("ProductLike", back_populates="product", cascade="all, delete-orphan")
+    user_reviews = relationship("UserReview", back_populates="product", cascade="all, delete-orphan")
+    product_reviews = relationship("ProductReview", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("idx_products_source_id", "source", "source_id", unique=True),
