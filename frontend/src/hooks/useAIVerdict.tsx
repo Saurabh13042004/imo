@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "react-toastify";
 import { API_BASE_URL } from "@/config/api";
 
 interface AIVerdict {
@@ -36,7 +36,6 @@ export const useAIVerdict = (
   const [status, setStatus] = useState<"idle" | "processing" | "ready" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const { toast } = useToast();
 
   useEffect(() => {
     // Only trigger if we have both productId and enriched data
@@ -51,9 +50,9 @@ export const useAIVerdict = (
         setError(null);
 
         // Show toast when processing starts
-        toast({
-          title: "🤖 IMO AI is crafting the best verdict for you…",
-          duration: 2000,
+        toast.info("🤖 IMO AI is crafting the best verdict for you…", {
+          position: "bottom-left",
+          autoClose: 2000,
         });
 
         console.log(`[useAIVerdict] Requesting verdict for product: ${productId}`);
@@ -88,9 +87,9 @@ export const useAIVerdict = (
           setIsLoading(false);
 
           // Show success toast
-          toast({
-            title: "✨ IMO AI verdict is ready",
-            duration: 2000,
+          toast.success("✨ IMO AI verdict is ready", {
+            position: "bottom-left",
+            autoClose: 2000,
           });
         } else if (result.status === "processing") {
           // Verdict is being generated

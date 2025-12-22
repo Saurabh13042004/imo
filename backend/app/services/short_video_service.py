@@ -11,6 +11,16 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Singleton HTTP client for video service with larger connection pool
+_video_client = None
+
+def get_video_client() -> httpx.AsyncClient:
+    """Get or create singleton HTTP client for video service."""
+    global _video_client
+    if _video_client is None:
+        limits = httpx.Limits(max_connections=50, max_keepalive_connections=10)
+        _video_client = httpx.AsyncClient(timeout=30.0, limits=limits)
+    return _video_client
 
 # In-memory cache for short video reviews
 short_video_cache: Dict[str, Dict[str, Any]] = {}
@@ -25,6 +35,7 @@ class ShortVideoReviewService:
         self.cache_expiry = CACHE_EXPIRY_HOURS
         self.serpapi_key = settings.SERPAPI_KEY
         self.base_url = "https://serpapi.com/search"
+        self.client = get_video_client()
 
     def _get_cache_key(self, product_id: str) -> str:
         """Generate cache key for product."""
@@ -104,30 +115,29 @@ class ShortVideoReviewService:
             return []
         
         try:
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                params = {
-                    "engine": "google_short_videos",
-                    "q": product_title,
-                    "api_key": self.serpapi_key
-                }
-                
-                logger.info(f"[ShortVideoReview] Searching SerpAPI for: {product_title}")
-                response = await client.get(self.base_url, params=params)
-                response.raise_for_status()
-                
-                data = response.json()
-                short_video_results = data.get("short_video_results", [])
-                
-                logger.info(f"[ShortVideoReview] Found {len(short_video_results)} short videos from SerpAPI")
-                
-                # Transform SerpAPI response to our format
-                videos = []
-                for result in short_video_results[:10]:  # Limit to 10
-                    video = self._transform_serpapi_result(result)
-                    if video:
-                        videos.append(video)
-                
-                return videos
+            params = {
+                "engine": "google_short_videos",
+                "q": product_title,
+                "api_key": self.serpapi_key
+            }
+            
+            logger.info(f"[ShortVideoReview] Searching SerpAPI for: {product_title}")
+            response = await self.client.get(self.base_url, params=params)
+            response.raise_for_status()
+            
+            data = response.json()
+            short_video_results = data.get("short_video_results", [])
+            
+            logger.info(f"[ShortVideoReview] Found {len(short_video_results)} short videos from SerpAPI")
+            
+            # Transform SerpAPI response to our format
+            videos = []
+            for result in short_video_results[:10]:  # Limit to 10
+                video = self._transform_serpapi_result(result)
+                if video:
+                    videos.append(video)
+            
+            return videos
         
         except httpx.RequestError as e:
             logger.error(f"[ShortVideoReview] HTTP error querying SerpAPI: {str(e)}")

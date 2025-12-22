@@ -42,6 +42,7 @@ export function useStoreReviews(productName: string | null, storeUrls?: string[]
 
   const fetchReviews = useCallback(async () => {
     if (!productName || !memoizedUrls || memoizedUrls.length === 0) {
+      console.log('[useStoreReviews] Waiting for productName or store URLs');
       setState(prev => ({ ...prev, status: 'idle' }));
       hasFetched.current = false;
       return;
@@ -52,6 +53,7 @@ export function useStoreReviews(productName: string | null, storeUrls?: string[]
       return;
     }
 
+    console.log('[useStoreReviews] Starting fetch for:', productName, 'with URLs:', memoizedUrls.length);
     setState(prev => ({ ...prev, status: 'loading' }));
     hasFetched.current = true;
     lastFetchKey.current = fetchKey;
@@ -77,6 +79,7 @@ export function useStoreReviews(productName: string | null, storeUrls?: string[]
 
       const data = await response.json();
 
+      console.log('[useStoreReviews] Got response:', data.reviews?.length, 'reviews');
       setState({
         reviews: data.reviews || [],
         status: 'ready',

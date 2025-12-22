@@ -35,6 +35,7 @@ export function useCommunityReviews(productName: string | null, brand?: string) 
 
   const fetchReviews = useCallback(async () => {
     if (!productName) {
+      console.log('[useCommunityReviews] Waiting for productName');
       setState(prev => ({ ...prev, status: 'idle' }));
       hasFetched.current = false;
       return;
@@ -45,6 +46,7 @@ export function useCommunityReviews(productName: string | null, brand?: string) 
       return;
     }
 
+    console.log('[useCommunityReviews] Starting fetch for:', productName);
     setState(prev => ({ ...prev, status: 'loading' }));
     hasFetched.current = true;
     lastFetchKey.current = fetchKey;
@@ -70,6 +72,7 @@ export function useCommunityReviews(productName: string | null, brand?: string) 
 
       const data = await response.json();
 
+      console.log('[useCommunityReviews] Got response:', data.reviews?.length, 'reviews');
       setState({
         reviews: data.reviews || [],
         status: 'ready',

@@ -17,6 +17,17 @@ from app.services.scraper import (
 
 logger = logging.getLogger(__name__)
 
+# Singleton HTTP client with larger connection pool to avoid "pool is full" warnings
+_http_client = None
+
+def get_http_client() -> httpx.AsyncClient:
+    """Get or create singleton HTTP client with larger pool."""
+    global _http_client
+    if _http_client is None:
+        limits = httpx.Limits(max_connections=100, max_keepalive_connections=20)
+        _http_client = httpx.AsyncClient(timeout=30.0, limits=limits)
+    return _http_client
+
 
 class CommunityReviewService:
     """Service for fetching and extracting community reviews."""
@@ -24,6 +35,7 @@ class CommunityReviewService:
     def __init__(self):
         self.serpapi_key = settings.SERPAPI_KEY
         self.base_url = "https://serpapi.com/search"
+        self.client = get_http_client()
     
     async def fetch_community_reviews(self, product_title: str, brand: str = "") -> Dict[str, Any]:
         """
@@ -286,10 +298,10 @@ class CommunityReviewService:
                 "num": 10,
             }
             
-            async with httpx.AsyncClient(timeout=30) as client:
-                response = await client.get(self.base_url, params=params)
-                response.raise_for_status()
-                return response.json()
+            # Use persistent client instead of creating new one
+            response = await self.client.get(self.base_url, params=params)
+            response.raise_for_status()
+            return response.json()
         except Exception as e:
             logger.warning(f"SerpAPI search failed for '{query}': {e}")
             return {"organic_results": []}

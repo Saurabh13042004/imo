@@ -2,6 +2,7 @@
 
 import logging
 import time
+import threading
 from typing import List, Dict, Any
 from urllib.parse import urlparse, parse_qs
 from selenium import webdriver
@@ -10,6 +11,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +32,7 @@ class GoogleReviewService:
         self, 
         google_shopping_url: str,
         product_name: str,
-        max_clicks: int = 5
+        max_clicks: int = 10
     ) -> Dict[str, Any]:
         """Fetch reviews using proven Selenium pattern."""
         try:
@@ -90,15 +92,15 @@ class GoogleReviewService:
             }
     
     def _load_reviews_smart(self, driver, wait, max_rounds: int) -> List[Dict[str, Any]]:
-        """Load reviews with smart stop when count stabilizes."""
+        """Load reviews with smart stop when count stabilizes - optimized timing."""
         
         last_count = 0
         stable_rounds = 0
         
         for i in range(max_rounds):
-            # Expand all reviews first
-            self._expand_all_reviews(driver)
-            time.sleep(1)
+            # Expand all reviews ASYNC (don't wait for all to complete)
+            self._expand_all_reviews_fast(driver)
+            time.sleep(0.5)  # Reduced from 1s
             
             # Get current count
             reviews = driver.find_elements(By.CSS_SELECTOR, 'div[data-attrid="user_review"]')
@@ -118,15 +120,46 @@ class GoogleReviewService:
             last_count = count
             
             # Try to load more
-            if not self._click_more_reviews(driver, wait):
+            if not self._click_more_reviews_fast(driver, wait):
                 logger.info("  ✗ No more reviews button — stopping")
                 break
             
-            time.sleep(1.5)
+            time.sleep(0.8)  # Reduced from 1.5s
         
         # Extract and parse all reviews
         return self._parse_reviews(driver)
     
+    def _expand_all_reviews_fast(self, driver):
+        """Click all 'Read more' buttons PARALLEL - optimized version."""
+        try:
+            buttons = driver.find_elements(
+                By.CSS_SELECTOR,
+                'div[jsaction*="trigger.nNRzZb"]'
+            )
+            
+            if not buttons:
+                return
+            
+            # Use ThreadPoolExecutor for parallel clicking
+            with ThreadPoolExecutor(max_workers=5) as executor:
+                def click_button(button):
+                    try:
+                        driver.execute_script("arguments[0].click();", button)
+                        return True
+                    except:
+                        return False
+                
+                # Submit all clicks to thread pool
+                futures = [executor.submit(click_button, b) for b in buttons]
+                # Wait for all to complete with timeout
+                for future in as_completed(futures, timeout=5):
+                    try:
+                        future.result()
+                    except:
+                        pass
+        except:
+            pass
+
     def _expand_all_reviews(self, driver):
         """Click all 'Read more' buttons to expand review text."""
         try:
@@ -152,50 +185,92 @@ class GoogleReviewService:
             return True
         except:
             return False
+
+    def _click_more_reviews_fast(self, driver, wait) -> bool:
+        """Click 'More reviews' button with reduced timeout - fast version."""
+        try:
+            # Use short timeout (3s instead of 10s)
+            short_wait = WebDriverWait(driver, 3)
+            btn = short_wait.until(EC.presence_of_element_located(
+                (By.CSS_SELECTOR, 'div[role="button"][jsaction*="trigger.MS0zad"]')
+            ))
+            driver.execute_script("arguments[0].click();", btn)
+            return True
+        except:
+            return False
     
     def _parse_reviews(self, driver) -> List[Dict[str, Any]]:
-        """Parse all reviews from DOM."""
-        results = []
-        
+        """Parse all reviews from DOM - optimized with parallel extraction."""
         try:
             review_elements = driver.find_elements(By.CSS_SELECTOR, 'div[data-attrid="user_review"]')
             
+            # Extract all review data first (fast)
+            review_data = []
             for r in review_elements:
-                def safe(css):
+                try:
+                    name = r.find_element(By.CSS_SELECTOR, ".cbsD0d").text
+                    rating_text = r.find_element(By.CSS_SELECTOR, ".yi40Hd").text
+                    review_text = r.find_element(By.CSS_SELECTOR, ".v168Le").text
+                    
+                    # Extract source - "Reviewed on ebay.com" or similar
+                    source = "Google Shopping"
                     try:
-                        return r.find_element(By.CSS_SELECTOR, css).text
+                        source_elem = r.find_element(By.CSS_SELECTOR, ".xuBzLd")
+                        source_text = source_elem.text.strip()
+                        # Parse "Reviewed on ebay.com" -> "ebay.com"
+                        if "Reviewed on" in source_text:
+                            source = source_text.replace("Reviewed on ", "").strip()
                     except:
-                        return ""
+                        pass
+                    
+                    review_data.append((name, rating_text, review_text, source))
+                except:
+                    pass
+            
+            # Process reviews in parallel
+            results = []
+            with ThreadPoolExecutor(max_workers=8) as executor:
+                def process_review(data):
+                    name, rating_text, review_text, source = data
+                    
+                    # Parse rating
+                    rating = 0
+                    if rating_text:
+                        import re
+                        match = re.search(r'\d', rating_text)
+                        if match:
+                            rating = int(match.group())
+                    
+                    # Only return if valid
+                    if review_text and len(review_text) > 10 and rating > 0:
+                        return {
+                            "reviewer_name": name or "Anonymous",
+                            "rating": rating,
+                            "title": "",
+                            "text": review_text,
+                            "review_date": "",
+                            "source": source
+                        }
+                    return None
                 
-                name = safe(".cbsD0d")
-                rating_text = safe(".yi40Hd")
-                review_text = safe(".v168Le")
+                # Submit all to thread pool
+                futures = [executor.submit(process_review, data) for data in review_data]
                 
-                # Parse rating (e.g., "5" from "Rated 5 out of 5")
-                rating = 0
-                if rating_text:
-                    import re
-                    match = re.search(r'\d', rating_text)
-                    if match:
-                        rating = int(match.group())
-                
-                # Only add if we have text and rating
-                if review_text and len(review_text) > 10 and rating > 0:
-                    results.append({
-                        "reviewer_name": name or "Anonymous",
-                        "rating": rating,
-                        "title": "",  # Google Shopping doesn't have separate titles
-                        "text": review_text,
-                        "review_date": "",
-                        "source": "Google Shopping"
-                    })
+                # Collect results
+                for future in as_completed(futures):
+                    try:
+                        result = future.result()
+                        if result:
+                            results.append(result)
+                    except:
+                        pass
             
             logger.info(f"  Parsed {len(results)} reviews")
+            return results
             
         except Exception as e:
             logger.warning(f"Error parsing reviews: {e}")
-        
-        return results
+            return []
     
     def _is_valid_google_shopping_url(self, url: str) -> bool:
         """Validate that URL is a Google Shopping URL."""

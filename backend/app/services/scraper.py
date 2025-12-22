@@ -11,6 +11,17 @@ from difflib import SequenceMatcher
 
 logger = logging.getLogger(__name__)
 
+# Singleton HTTP client for scraper with larger connection pool
+_scraper_client = None
+
+def get_scraper_client() -> httpx.AsyncClient:
+    """Get or create singleton HTTP client for scraper."""
+    global _scraper_client
+    if _scraper_client is None:
+        limits = httpx.Limits(max_connections=50, max_keepalive_connections=10)
+        _scraper_client = httpx.AsyncClient(timeout=10.0, limits=limits)
+    return _scraper_client
+
 # Opinion keywords for review detection
 OPINION_KEYWORDS = {
     'positive': ['good', 'great', 'excellent', 'amazing', 'love', 'best', 'perfect', 'works', 'recommend', 'worth', 'quality', 'impressive', 'satisfied', 'happy', 'fantastic', 'awesome', 'brilliant'],
@@ -55,13 +66,13 @@ async def fetch_html(url: str, timeout: int = 10) -> str | None:
         HTML content or None if fetch fails
     """
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            }
-            response = await client.get(url, headers=headers, follow_redirects=True)
-            response.raise_for_status()
-            return response.text
+        client = get_scraper_client()
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+        response = await client.get(url, headers=headers, follow_redirects=True)
+        response.raise_for_status()
+        return response.text
     except Exception as e:
         logger.warning(f"Failed to fetch {url}: {e}")
         return None

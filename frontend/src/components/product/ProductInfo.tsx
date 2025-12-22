@@ -17,9 +17,11 @@ interface ProductInfoProps {
   description?: string;
   productUrl: string;
   source: 'Amazon' | 'Walmart' | 'Home Depot' | 'Google';
+  priceRange?: string;
+  enrichedProductDescription?: string;
 }
 
-export const ProductInfo = ({ title, price, imoScore, aiVerdictScore, verdictStatus, description, productUrl, source }: ProductInfoProps) => {
+export const ProductInfo = ({ title, price, imoScore, aiVerdictScore, verdictStatus, description, productUrl, source, priceRange, enrichedProductDescription }: ProductInfoProps) => {
   const { productId } = useParams<{ productId: string }>();
   const { trackAffiliateClick } = useAnalytics();
   const { country } = useSearchUrl();
@@ -59,9 +61,18 @@ export const ProductInfo = ({ title, price, imoScore, aiVerdictScore, verdictSta
           </h1>
           <ProductSource source={source} />
         </div>
-        <p className="text-3xl font-bold text-primary mb-6">
-          {formatPrice(price)}
-        </p>
+        
+        {/* Price Display */}
+        <div className="space-y-2 mb-6">
+          {/* <p className="text-3xl font-bold text-primary">
+          
+          </p> */}
+          {priceRange && (
+            <p className="text-xl text-muted-foreground">
+              Price Range: <span className="font-semibold text-foreground">  {priceRange}</span>
+            </p>
+          )}
+        </div>
 
         {/* AI Verdict Score - Priority over basic IMO score */}
         {aiVerdictScore !== undefined ? (
@@ -87,17 +98,18 @@ export const ProductInfo = ({ title, price, imoScore, aiVerdictScore, verdictSta
           </div>
         ) : null}
 
-        {description && (
-          <div className="text-muted-foreground text-lg leading-relaxed mb-8 prose prose-slate dark:prose-invert max-w-none">
-            {isHtmlContent(description) ? (
+        {/* Enhanced Product Description */}
+        {(enrichedProductDescription || description) && (
+          <div className="text-muted-foreground text-base leading-relaxed mb-8 prose prose-slate dark:prose-invert max-w-none">
+            {isHtmlContent(enrichedProductDescription || description) ? (
               <div 
                 dangerouslySetInnerHTML={{ 
-                  __html: sanitizeHtml(description) 
+                  __html: sanitizeHtml(enrichedProductDescription || description || '') 
                 }}
-                className="[&>p]:mb-4 [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-3 [&>h3]:text-lg [&>h3]:font-semibold [&>h3]:mb-2 [&>ul]:mb-4 [&>li]:mb-1 [&>strong]:font-semibold"
+                className="[&>p]:mb-4 [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-3 [&>h3]:text-lg [&>h3]:font-semibold [&>h3]:mb-2 [&>ul]:mb-4 [&>li]:mb-1 [&>strong]:font-semibold line-clamp-3"
               />
             ) : (
-              <p>{description}</p>
+              <p className="line-clamp-3">{enrichedProductDescription || description}</p>
             )}
           </div>
         )}
@@ -110,8 +122,7 @@ export const ProductInfo = ({ title, price, imoScore, aiVerdictScore, verdictSta
         className="w-full rounded-xl bg-gradient-primary hover:shadow-lg hover:shadow-primary/25 border-0 font-medium text-lg py-6 text-primary-foreground"
       >
         <a 
-          href={getAffiliateUrl(productUrl, source)} 
-          target="_blank" 
+          href="#whereToBuy"
           rel="noopener noreferrer"
           onClick={handleAffiliateClick}
         >

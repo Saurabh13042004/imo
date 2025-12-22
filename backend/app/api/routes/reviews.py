@@ -362,6 +362,7 @@ async def get_google_reviews_stateless(
     """
     from app.services.google_review_service import GoogleReviewService
     from app.services.ai_review_service import AIReviewService
+    import asyncio
     
     try:
         # Extract request parameters
@@ -383,10 +384,12 @@ async def get_google_reviews_stateless(
         logger.info(f"Fetching Google Shopping reviews for: {product_name}")
         logger.debug(f"Google Shopping URL: {google_shopping_url}")
         
-        # Step 1: Scrape Google Shopping page
-        logger.debug("Step 1: Starting Google Shopping scraper...")
+        # Step 1: Scrape Google Shopping page - RUN IN THREAD POOL TO AVOID BLOCKING
+        logger.debug("Step 1: Starting Google Shopping scraper in thread pool...")
         google_service = GoogleReviewService()
-        scrape_result = google_service.fetch_google_reviews(
+        # Use asyncio.to_thread to run blocking scraper in thread pool
+        scrape_result = await asyncio.to_thread(
+            google_service.fetch_google_reviews,
             google_shopping_url=google_shopping_url,
             product_name=product_name
         )

@@ -3,7 +3,8 @@ import { useState, useEffect } from "react";
 import { ArrowLeft, ShoppingBag, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
+import { Badge } from "@/components/ui/badge";
+import { toast } from "react-toastify";
 import { useAnalytics } from "@/hooks/useAnalytics";
 import { useParallax } from "@/hooks/useParallax";
 import { useSearchUrl } from "@/hooks/useSearchUrl";
@@ -43,7 +44,6 @@ const ProductDetails = () => {
   const [enrichmentLoading, setEnrichmentLoading] = useState(false);
   const [googleReviews, setGoogleReviews] = useState<any>(null);
   const [refreshReviews, setRefreshReviews] = useState(0);
-  const { toast } = useToast();
   const { trackProductView } = useAnalytics();
 
   // Use AI Verdict hook for all products (not Amazon-specific)
@@ -52,31 +52,34 @@ const ProductDetails = () => {
     enrichedData
   );
 
-  // Memoize store URLs - don't wait for enrichedData to fetch from stores
+  // Memoize store URLs - wait for enrichedData
   const storeUrls = enrichedData?.immersive_data?.product_results?.stores
     ?.filter((s: any) => s.link)
     ?.map((s: any) => s.link) || [];
 
-  // Use Community Reviews hook - start immediately, don't wait for enrichedData
+  // Use Community Reviews hook - start ONLY after enrichedData arrives
   const communityReviews = useCommunityReviews(
-    product?.title || '',
+    enrichedData ? (product?.title || '') : null,
     product?.brand
   );
 
-  // Use Store Reviews hook - start immediately with empty URLs, update when enrichedData arrives
+  // Use Store Reviews hook - start ONLY after enrichedData arrives with store URLs
   const storeReviews = useStoreReviews(
-    product?.title || '',
+    enrichedData && storeUrls.length > 0 ? (product?.title || '') : null,
     storeUrls.length > 0 ? storeUrls : undefined
   );
 
-  // Fetch Google Shopping reviews - independent, non-blocking
-  // This runs separately and appends results without blocking other APIs
+  // Fetch Google Shopping reviews - start ONLY after enrichedData arrives
+  // This runs in parallel with other APIs once enriched data is ready
   useEffect(() => {
-    if (!product?.product_url || !product?.title) return;
+    if (!enrichedData || !product?.product_url || !product?.title) return;
+
+    console.log('[ProductDetails] Starting Google reviews fetch for:', product.title);
 
     // Don't wait for enrichedData - start fetching immediately
     const fetchGoogleReviews = async () => {
       try {
+        console.log('[ProductDetails] Fetching Google reviews API...');
         // Don't set loading - just fetch in background
         const response = await fetch(`${API_BASE_URL}/api/v1/reviews/google`, {
           method: 'POST',
@@ -89,16 +92,19 @@ const ProductDetails = () => {
 
         if (response.ok) {
           const data = await response.json();
+          console.log('[ProductDetails] Google reviews received:', data.reviews?.length || 0);
           // Just set the data - don't show loading state
           setGoogleReviews(data);
           // Show toast notification when reviews arrive
           if (data?.reviews?.length > 0) {
-            toast({
-              title: "IMO AI Just added new reviews",
-              description: `${data.reviews.length} Google Shopping reviews loaded`,
-              variant: "default",
-              className: "fixed bottom-4 left-4"
-            });
+            console.log('[ProductDetails] Showing Google reviews toast');
+            toast.success(
+              `IMO AI Just added ${data.reviews.length} Google Shopping reviews! Happy Shopping!`,
+              {
+                position: "bottom-left",
+                autoClose: 3000,
+              }
+            );
           }
         }
       } catch (error) {
@@ -108,31 +114,35 @@ const ProductDetails = () => {
     };
 
     fetchGoogleReviews();
-  }, [product?.product_url, product?.title, toast]);
+  }, [enrichedData, product?.product_url, product?.title]);
 
   // Show notification when community reviews arrive
   useEffect(() => {
     if (communityReviews.reviews && communityReviews.reviews.length > 0 && communityReviews.status === 'loaded') {
-      toast({
-        title: "IMO AI Just added new reviews",
-        description: `${communityReviews.reviews.length} community reviews loaded`,
-        variant: "default",
-        className: "fixed bottom-4 left-4"
-      });
+      console.log('[ProductDetails] Showing community reviews toast:', communityReviews.reviews.length);
+      toast.success(
+        `IMO AI Just added ${communityReviews.reviews.length} community reviews! Happy Shopping!`,
+        {
+          position: "bottom-left",
+          autoClose: 3000,
+        }
+      );
     }
-  }, [communityReviews.reviews?.length, communityReviews.status, toast]);
+  }, [communityReviews.reviews?.length, communityReviews.status]);
 
   // Show notification when store reviews arrive
   useEffect(() => {
     if (storeReviews.reviews && storeReviews.reviews.length > 0 && storeReviews.status === 'loaded') {
-      toast({
-        title: "IMO AI Just added new reviews",
-        description: `${storeReviews.reviews.length} store reviews loaded`,
-        variant: "default",
-        className: "fixed bottom-4 left-4"
-      });
+      console.log('[ProductDetails] Showing store reviews toast:', storeReviews.reviews.length);
+      toast.success(
+        `IMO AI Just added ${storeReviews.reviews.length} store reviews! Happy Shopping!`,
+        {
+          position: "bottom-left",
+          autoClose: 3000,
+        }
+      );
     }
-  }, [storeReviews.reviews?.length, storeReviews.status, toast]);
+  }, [storeReviews.reviews?.length, storeReviews.status]);
 
   // Validate productId early
   const isValidProductId = productId && 
@@ -180,15 +190,11 @@ const ProductDetails = () => {
       }
     } catch (error) {
       console.error("Error loading product from localStorage:", error);
-      toast({
-        title: "Error",
-        description: "Could not load product data",
-        variant: "destructive"
-      });
+      toast.error("Could not load product data");
     } finally {
       setLoading(false);
     }
-  }, [isValidProductId, productId, toast, trackProductView]);
+  }, [isValidProductId, productId, trackProductView]);
 
   // Fetch enriched data for all products (product-agnostic)
   useEffect(() => {
@@ -325,6 +331,8 @@ const ProductDetails = () => {
                         description={enrichedData?.bullet_points ? enrichedData.bullet_points.split('\n')[0] : (enrichedData?.description || product.description)}
                         productUrl={product.product_url}
                         source={product.source as any}
+                        priceRange={enrichedData?.immersive_data?.product_results?.price_range}
+                        enrichedProductDescription={enrichedData?.immersive_data?.product_results?.about_the_product?.description}
                       />
                       <div className="flex justify-start">
                         <ProductLikeButton productId={product.id} />
@@ -538,29 +546,103 @@ const ProductDetails = () => {
 
                       {/* Price Comparison - SerpAPI stores */}
                       {enrichedData.immersive_data.product_results?.stores && enrichedData.immersive_data.product_results.stores.filter((store: any) => store.extracted_price > 0 || store.price > 0).length > 0 && (
-                        <div className="bg-card rounded-lg border border-border/50 p-6 space-y-4">
+                        <div className="bg-card rounded-lg border border-border/50 p-6 space-y-4" id="whereToBuy">
                           <h3 className="font-semibold text-lg">Where to Buy</h3>
                           
-                          {/* SerpAPI stores */}
+                          {/* SerpAPI stores - Enhanced with badges, logos, buttons */}
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {enrichedData.immersive_data.product_results.stores.filter((store: any) => store.extracted_price > 0 || store.price > 0).slice(0, 4).map((store: any, idx: number) => (
-                              <a
+                            {enrichedData.immersive_data.product_results.stores.filter((store: any) => store.extracted_price > 0 || store.price > 0).map((store: any, idx: number) => (
+                              <motion.div
                                 key={idx}
-                                href={store.link}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-4 bg-background rounded-lg border border-border/30 hover:border-primary/50 transition-colors"
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: idx * 0.05 }}
+                                className="border border-border rounded-lg p-4 hover:border-primary/50 hover:bg-primary/5 transition-all"
                               >
-                                <p className="font-medium text-sm mb-2">{store.name}</p>
-                                <p className="text-lg font-bold text-primary">{formatPriceWithCurrency(store.extracted_price || store.price, country)}</p>
-                                {store.details_and_offers && (
-                                  <ul className="text-xs text-muted-foreground mt-2 space-y-1">
-                                    {store.details_and_offers.slice(0, 2).map((offer: string, i: number) => (
-                                      <li key={i}>• {offer}</li>
+                                <div className="flex items-start justify-between gap-3 mb-3">
+                                  <div className="flex items-center gap-3 flex-1">
+                                    {store.logo && (
+                                      <img
+                                        src={store.logo}
+                                        alt={store.name}
+                                        className="h-10 w-10 rounded-lg object-cover"
+                                      />
+                                    )}
+                                    <div>
+                                      <h4 className="font-semibold text-foreground text-sm">{store.name}</h4>
+                                      {store.rating && (
+                                        <p className="text-xs text-muted-foreground">
+                                          ⭐ {store.rating} ({store.reviews} reviews)
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {store.tag && (
+                                    <Badge 
+                                      variant={store.tag.toLowerCase().includes("price") ? "destructive" : "default"}
+                                      className="whitespace-nowrap text-xs"
+                                    >
+                                      {store.tag}
+                                    </Badge>
+                                  )}
+                                </div>
+
+                                {/* Price Info */}
+                                <div className="mb-3 space-y-1">
+                                  <div className="flex items-baseline gap-2">
+                                    <span className="text-xl font-bold text-primary">
+                                      {store.price || formatPriceWithCurrency(store.extracted_price, country)}
+                                    </span>
+                                    {store.original_price && (
+                                      <span className="text-xs text-muted-foreground line-through">
+                                        {store.original_price || formatPriceWithCurrency(store.extracted_original_price, country)}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {store.shipping && (
+                                    <p className="text-xs">
+                                      {store.shipping === "Free" ? (
+                                        <span className="text-green-600 dark:text-green-400 font-semibold">✓ {store.shipping} Shipping</span>
+                                      ) : (
+                                        <span className="text-muted-foreground">Shipping: {store.shipping}</span>
+                                      )}
+                                    </p>
+                                  )}
+                                </div>
+
+                                {/* Details and Offers */}
+                                {store.details_and_offers && store.details_and_offers.length > 0 && (
+                                  <div className="mb-4 space-y-1">
+                                    {store.details_and_offers.slice(0, 2).map((detail: string, i: number) => (
+                                      <p key={i} className="text-xs text-muted-foreground flex items-center">
+                                        <span className="text-green-600 dark:text-green-400 mr-2">✓</span>
+                                        {detail}
+                                      </p>
                                     ))}
-                                  </ul>
+                                    {store.details_and_offers.length > 2 && (
+                                      <p className="text-xs text-muted-foreground italic">
+                                        +{store.details_and_offers.length - 2} more benefits
+                                      </p>
+                                    )}
+                                  </div>
                                 )}
-                              </a>
+
+                                {/* View Button */}
+                                <Button
+                                  asChild
+                                  size="sm"
+                                  className="w-full rounded-lg bg-primary hover:bg-primary/90 text-xs h-8"
+                                >
+                                  <a
+                                    href={store.link}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                  >
+                                    View on {store.name}
+                                  </a>
+                                </Button>
+                              </motion.div>
                             ))}
                           </div>
                         </div>
