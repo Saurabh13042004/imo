@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
-import { Star, ThumbsUp, ThumbsDown, ShieldCheck } from "lucide-react";
+import { Star, ThumbsUp, ThumbsDown, ShieldCheck, Filter } from "lucide-react";
 import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
 
 interface ExternalReview {
   id: string;
@@ -29,8 +30,62 @@ interface ExternalReviewsProps {
 
 export const ExternalReviews = ({ productId, reviews = [], reviewsSummary, isLoading }: ExternalReviewsProps) => {
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortBy, setSortBy] = useState<'latest' | 'relevance' | 'rating-high' | 'rating-low'>('latest');
+  const [selectedSources, setSelectedSources] = useState<Set<string>>(new Set());
   const reviewsPerPage = 5;
   const totalReviews = reviews.length;
+
+  // Get unique sources for filter
+  const uniqueSources = useMemo(() => {
+    const sources = new Set<string>();
+    reviews.forEach(review => {
+      if (review.source) sources.add(review.source);
+    });
+    return Array.from(sources).sort();
+  }, [reviews]);
+
+  // Filter reviews by selected sources
+  const filteredReviews = useMemo(() => {
+    if (selectedSources.size === 0) return reviews;
+    return reviews.filter(review => selectedSources.has(review.source || ''));
+  }, [reviews, selectedSources]);
+
+  // Sort reviews
+  const sortedReviews = useMemo(() => {
+    const sorted = [...filteredReviews];
+    
+    switch (sortBy) {
+      case 'latest':
+        return sorted.sort((a, b) => {
+          const dateA = a.review_date ? new Date(a.review_date).getTime() : 0;
+          const dateB = b.review_date ? new Date(b.review_date).getTime() : 0;
+          return dateB - dateA;
+        });
+      case 'relevance':
+        return sorted.sort((a, b) => {
+          const scoreA = (a.positive_feedback - a.negative_feedback) + a.rating;
+          const scoreB = (b.positive_feedback - b.negative_feedback) + b.rating;
+          return scoreB - scoreA;
+        });
+      case 'rating-high':
+        return sorted.sort((a, b) => b.rating - a.rating);
+      case 'rating-low':
+        return sorted.sort((a, b) => a.rating - b.rating);
+      default:
+        return sorted;
+    }
+  }, [filteredReviews, sortBy]);
+
+  const toggleSource = (source: string) => {
+    const newSources = new Set(selectedSources);
+    if (newSources.has(source)) {
+      newSources.delete(source);
+    } else {
+      newSources.add(source);
+    }
+    setSelectedSources(newSources);
+    setCurrentPage(1);
+  };
 
   const renderStars = (rating: number) => {
     return Array.from({ length: 5 }, (_, i) => (
@@ -52,7 +107,8 @@ export const ExternalReviews = ({ productId, reviews = [], reviewsSummary, isLoa
     });
   };
 
-  const totalPages = Math.ceil(totalReviews / reviewsPerPage);
+  const totalFilteredReviews = sortedReviews.length;
+  const totalPages = Math.ceil(totalFilteredReviews / reviewsPerPage);
 
   const renderPagination = () => {
     if (totalPages <= 1) return null;
@@ -151,15 +207,15 @@ export const ExternalReviews = ({ productId, reviews = [], reviewsSummary, isLoa
   // Get current page reviews
   const startIndex = (currentPage - 1) * reviewsPerPage;
   const endIndex = startIndex + reviewsPerPage;
-  const currentReviews = reviews.slice(startIndex, endIndex);
+  const currentReviews = sortedReviews.slice(startIndex, endIndex);
 
   return (
     <Card className="glass-card">
       <CardContent className="p-6">
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <h3 className="text-lg font-semibold">
-             Product Reviews ({totalReviews})
+              Product Reviews ({totalFilteredReviews}{selectedSources.size > 0 ? ` / ${totalReviews}` : ''})
             </h3>
             <div className="flex items-center gap-2">
               {totalPages > 1 && (
@@ -168,6 +224,59 @@ export const ExternalReviews = ({ productId, reviews = [], reviewsSummary, isLoa
                 </span>
               )}
             </div>
+          </div>
+
+          {/* Sort and Filter Controls */}
+          <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center flex-wrap">
+            {/* Sort Dropdown */}
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium">Sort:</label>
+              <select
+                value={sortBy}
+                onChange={(e) => {
+                  setSortBy(e.target.value as any);
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-1 rounded-lg border border-border bg-background text-sm hover:border-primary/50 transition-colors"
+              >
+                <option value="latest">Latest First</option>
+                <option value="relevance">Most Relevant</option>
+                <option value="rating-high">Highest Rated</option>
+                <option value="rating-low">Lowest Rated</option>
+              </select>
+            </div>
+
+            {/* Source Filter */}
+            {uniqueSources.length > 0 && (
+              <div className="flex items-center gap-2 flex-wrap">
+                <Filter className="h-4 w-4" />
+                <label className="text-sm font-medium">Sources:</label>
+                {uniqueSources.map((source) => (
+                  <Button
+                    key={source}
+                    variant={selectedSources.has(source) ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => toggleSource(source)}
+                    className="text-xs h-8"
+                  >
+                    {source}
+                  </Button>
+                ))}
+                {selectedSources.size > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedSources(new Set());
+                      setCurrentPage(1);
+                    }}
+                    className="text-xs h-8 text-muted-foreground"
+                  >
+                    Clear All
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
 
           {reviewsSummary && (
@@ -228,20 +337,10 @@ export const ExternalReviews = ({ productId, reviews = [], reviewsSummary, isLoa
                         !review.source?.toLowerCase().includes('community') &&
                         <Badge 
                           variant="outline" 
-                          className={`text-xs ${
-                            review.source === 'Google Shopping' || 
-                            review.source === 'enriched' ||
-                            review.source === 'FireCrawl' ||
-                            review.source?.includes('Store') ||
-                            review.source?.includes('Amazon') ||
-                            review.source?.includes('Flipkart') ||
-                            review.source?.includes('eBay')
-                              ? 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
-                              : ''
-                          }`}
+                          className="text-xs bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800"
                         >
                           <ShieldCheck className="h-3 w-3 mr-1" />
-                          {review.source === 'FireCrawl' ? 'Verified Review' : 'Verified'}
+                          Verified
                         </Badge>
                       )}
                     </div>
@@ -255,19 +354,9 @@ export const ExternalReviews = ({ productId, reviews = [], reviewsSummary, isLoa
                           <span>•</span>
                           <Badge 
                             variant="secondary" 
-                            className={`text-xs ${
-                              review.source === 'Google Shopping' || 
-                              review.source === 'enriched' ||
-                              review.source === 'FireCrawl' ||
-                              review.source?.includes('Store') ||
-                              review.source?.includes('Amazon') ||
-                              review.source?.includes('Flipkart') ||
-                              review.source?.includes('eBay')
-                                ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
-                                : ''
-                            }`}
+                            className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
                           >
-                            {review.source === 'FireCrawl' ? 'Official Review' : review.source}
+                            {review.source === 'FireCrawl' ? 'Official Review' : (review.source || 'Google Shopping')}
                           </Badge>
                         </>
                       )}

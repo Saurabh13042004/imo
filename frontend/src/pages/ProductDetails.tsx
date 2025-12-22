@@ -745,7 +745,7 @@ const ProductDetails = () => {
                   <ProductReviews 
                     productId={productId || ""}
                     reviews={[
-                      // Amazon reviews from unified response (canonical source)
+                      // 1. Amazon reviews from unified response (canonical source)
                       ...(enrichedData?.amazon_reviews?.map((review: any) => ({
                         id: review.id,
                         external_review_id: review.id,
@@ -759,7 +759,7 @@ const ProductDetails = () => {
                         negative_feedback: 0,
                         source: "Amazon"
                       })) || []),
-                      // External reviews from enrichment layer (SerpAPI intelligent endpoint)
+                      // 2. External reviews from enrichment layer (SerpAPI intelligent endpoint)
                       ...(enrichedData?.external_reviews?.map((review: any) => ({
                         id: `${review.source}-${review.author}-${review.title}`,
                         external_review_id: `${review.source}-${review.author}`,
@@ -773,7 +773,7 @@ const ProductDetails = () => {
                         negative_feedback: 0,
                         source: review.source
                       })) || []),
-                      // User reviews from immersive product endpoint (non-Amazon products)
+                      // 3. User reviews from immersive product endpoint (non-Amazon products)
                       ...(enrichedData?.immersive_data?.product_results?.user_reviews?.map((review: any) => ({
                         id: `${review.source}-${review.user_name}-${review.title}`,
                         external_review_id: `${review.source}-${review.user_name}`,
@@ -787,21 +787,21 @@ const ProductDetails = () => {
                         negative_feedback: 0,
                         source: review.source || "SerpAPI"
                       })) || []),
-                      // Community reviews (Reddit + Forums)
-                      ...(communityReviews.reviews?.map((review: any) => ({
-                        id: `community-${review.source}-${review.text?.substring(0, 20)}`,
-                        external_review_id: `community-${review.source}`,
-                        reviewer_name: review.author || "Community Member",
-                        rating: 0,
-                        title: `${review.source} Discussion`,
+                      // 4. Google Shopping reviews
+                      ...(googleReviews?.reviews?.map((review: any) => ({
+                        id: `google-${review.reviewer_name}-${review.title}`,
+                        external_review_id: `google-${review.reviewer_name}`,
+                        reviewer_name: review.reviewer_name,
+                        rating: review.rating,
+                        title: review.title || "Google Shopping Review",
                         review_text: review.text,
                         verified_purchase: false,
-                        review_date: new Date().toISOString(),
+                        review_date: review.date || new Date().toISOString(),
                         positive_feedback: 0,
                         negative_feedback: 0,
-                        source: review.source
+                        source: "Google Shopping"
                       })) || []),
-                      // Store reviews
+                      // 5. Store reviews
                       ...(storeReviews.reviews?.map((review: any) => ({
                         id: `store-${review.store}-${review.text?.substring(0, 20)}`,
                         external_review_id: `store-${review.store}`,
@@ -815,19 +815,19 @@ const ProductDetails = () => {
                         negative_feedback: 0,
                         source: review.store || "Store"
                       })) || []),
-                      // Google Shopping reviews
-                      ...(googleReviews?.reviews?.map((review: any) => ({
-                        id: `google-${review.reviewer_name}-${review.title}`,
-                        external_review_id: `google-${review.reviewer_name}`,
-                        reviewer_name: review.reviewer_name,
-                        rating: review.rating,
-                        title: review.title || "Google Shopping Review",
+                      // 6. Community reviews (Reddit + Forums)
+                      ...(communityReviews.reviews?.map((review: any) => ({
+                        id: `community-${review.source}-${review.text?.substring(0, 20)}`,
+                        external_review_id: `community-${review.source}`,
+                        reviewer_name: review.author || "Community Member",
+                        rating: 0,
+                        title: `${review.source} Discussion`,
                         review_text: review.text,
                         verified_purchase: false,
-                        review_date: review.date || new Date().toISOString(),
+                        review_date: new Date().toISOString(),
                         positive_feedback: 0,
                         negative_feedback: 0,
-                        source: "Google Shopping"
+                        source: review.source
                       })) || [])
                     ]}
                     reviewsSummary={googleReviews?.summary || undefined}
