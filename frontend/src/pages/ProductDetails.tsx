@@ -12,6 +12,7 @@ import { useCommunityReviews } from "@/hooks/useCommunityReviews";
 import { useStoreReviews } from "@/hooks/useStoreReviews";
 import { formatPriceWithCurrency } from "@/utils/currencyUtils";
 import { API_BASE_URL } from "@/config/api";
+import { extractIdFromSlug } from "@/utils/slugUtils";
 // import { useProductBasic, useProductReviews, useProductVideos } from "@/hooks/useProductDetails";
 
 import { ProductLikeButton } from "@/components/product/ProductLikeButton";
@@ -32,7 +33,9 @@ import { useSearchAccess } from "@/hooks/useSearchAccess";
 
 const ProductDetails = () => {
   useParallax();
-  const { id: productId } = useParams<{ id: string }>();
+  const { slug } = useParams<{ slug: string }>();
+  // Extract product ID from slug
+  const productId = slug ? extractIdFromSlug(slug) : undefined;
   const { zipcode, country } = useSearchUrl();
   const [product, setProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(true);

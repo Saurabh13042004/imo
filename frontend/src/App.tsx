@@ -46,7 +46,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/search" element={<Search />} />
-          <Route path="/product/:id" element={<ProductDetails />} />
+          <Route path="/product/:slug" element={<ProductDetails />} />
           <Route path="/profile" element={<Profile />} />
           <Route path="/likes" element={<Likes />} />
           <Route path="/auth" element={<Auth />} />

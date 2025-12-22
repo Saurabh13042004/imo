@@ -7,6 +7,7 @@ import { Link } from "react-router-dom";
 import React from "react";
 import { useSearchUrl } from "@/hooks/useSearchUrl";
 import { formatPriceWithCurrency } from "@/utils/currencyUtils";
+import { generateSlug } from "@/utils/slugUtils";
 
 interface ProductGridProps {
   products: Product[];
@@ -128,8 +129,9 @@ export const ProductGrid = ({ products }: ProductGridProps) => {
                       console.log('Saved complete product to currentProduct:', product.id);
                       console.log('Product fields:', Object.keys(product));
                       console.log('Immersive link:', (product as any).immersive_product_api_link);
-                      // Navigate to product details
-                      window.location.href = `/product/${product.id}`;
+                      // Generate slug and navigate to product details
+                      const slug = generateSlug(product.title, product.id);
+                      window.location.href = `/product/${slug}`;
                     }
                   }}
                 >
