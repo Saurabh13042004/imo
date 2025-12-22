@@ -210,28 +210,61 @@ export const ExternalReviews = ({ productId, reviews = [], reviewsSummary, isLoa
               <CardContent className="p-6">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
+                    <div className="flex items-center space-x-2 mb-2 flex-wrap gap-2">
                       <div className="flex">{renderStars(review.rating)}</div>
                       <span className="text-sm font-medium">
                         {review.rating}/5
                       </span>
                       {review.verified_purchase && (
-                        <Badge variant="outline" className="text-xs">
+                        <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800">
                           <ShieldCheck className="h-3 w-3 mr-1" />
                           Verified Purchase
                         </Badge>
                       )}
+                      {/* Verified badges for enriched API, Google, and store reviews */}
+                      {review.source && (
+                        <Badge 
+                          variant="outline" 
+                          className={`text-xs ${
+                            review.source === 'Google Shopping' || 
+                            review.source === 'enriched' ||
+                            review.source === 'FireCrawl' ||
+                            review.source?.includes('Store') ||
+                            review.source?.includes('Amazon') ||
+                            review.source?.includes('Flipkart') ||
+                            review.source?.includes('eBay')
+                              ? 'bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                              : ''
+                          }`}
+                        >
+                          <ShieldCheck className="h-3 w-3 mr-1" />
+                          {review.source === 'FireCrawl' ? 'Verified Review' : 'Verified'}
+                        </Badge>
+                      )}
                     </div>
 
-                    <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                    <div className="flex items-center space-x-2 text-sm text-muted-foreground flex-wrap gap-2">
                       <span>{review.reviewer_name || 'Anonymous'}</span>
                       <span>•</span>
                       <span>{formatDate(review.review_date)}</span>
                       {review.source && (
                         <>
                           <span>•</span>
-                          <Badge variant="secondary" className="text-xs">
-                            {review.source === 'FireCrawl' ? 'External Review' : review.source}
+                          <Badge 
+                            variant="secondary" 
+                            className={`text-xs ${
+                              review.source === 'Google Shopping' || 
+                              review.source === 'enriched' ||
+                              review.source === 'FireCrawl' ||
+                              review.source?.includes('Store') ||
+                              review.source?.includes('Amazon') ||
+                              review.source?.includes('Flipkart') ||
+                              review.source?.includes('eBay')
+                                ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
+                                : ''
+                            }`}
+                          >
+                            {review.source === 'FireCrawl' ? 'Official Review' : review.source}
                           </Badge>
                         </>
                       )}
