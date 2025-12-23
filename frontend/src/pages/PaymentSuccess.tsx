@@ -27,45 +27,68 @@ export default function PaymentSuccess() {
   // Only call ONCE when component mounts
   useEffect(() => {
     const completeCheckout = async () => {
-      if (sessionId && accessToken && !checkoutCompleted) {
-        try {
-          console.log('Calling manual checkout completion for session:', sessionId);
-          const response = await fetch(`${API_BASE_URL}/api/v1/payments/checkout-complete`, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ session_id: sessionId })
-          });
-          
-          if (response.ok) {
-            console.log('Manual checkout completion successful');
-            setCheckoutCompleted(true);
-            // Immediately refresh access to get updated subscription
-            await refreshAccess();
-          } else {
-            const errorData = await response.json();
-            console.error('Manual checkout completion failed:', errorData);
-            // Even if it fails (e.g., duplicate), mark as completed to avoid retry
-            setCheckoutCompleted(true);
-          }
-        } catch (error) {
-          console.error('Error calling manual checkout completion:', error);
-          // Mark as completed to avoid infinite retries
+      if (!sessionId) {
+        console.warn('No session_id in URL');
+        return;
+      }
+      
+      if (!accessToken) {
+        console.warn('No access token - waiting...');
+        return;
+      }
+      
+      if (checkoutCompleted) {
+        console.log('Checkout already completed - skipping');
+        return;
+      }
+      
+      try {
+        console.log('🔵 Calling manual checkout completion for session:', sessionId);
+        const response = await fetch(`${API_BASE_URL}/api/v1/payments/checkout-complete`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ session_id: sessionId })
+        });
+        
+        if (response.ok) {
+          console.log('✅ Manual checkout completion successful');
+          setCheckoutCompleted(true);
+          // Immediately refresh access to get updated subscription
+          await refreshAccess();
+        } else {
+          const errorData = await response.json();
+          console.error('❌ Manual checkout completion failed:', errorData);
+          // Even if it fails (e.g., duplicate), mark as completed to avoid retry
           setCheckoutCompleted(true);
         }
+      } catch (error) {
+        console.error('❌ Error calling manual checkout completion:', error);
+        // Mark as completed to avoid infinite retries
+        setCheckoutCompleted(true);
       }
     };
     
-    completeCheckout();
+    // Only call if we have both sessionId and accessToken
+    if (sessionId && accessToken) {
+      completeCheckout();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty deps - only run once on mount
+  }, [sessionId, accessToken]); // Re-run if accessToken becomes available
 
   // Poll subscription status until webhook processes
   useEffect(() => {
     const pollSubscription = async () => {
-      if (!isRefreshing || pollingCount >= 20) return; // Stop after 20 attempts (40 seconds)
+      if (!isRefreshing || pollingCount >= 20) {
+        // Stop polling after 20 attempts (40 seconds)
+        if (pollingCount >= 20) {
+          console.warn('Polling limit reached - stopping refresh');
+          setIsRefreshing(false);
+        }
+        return;
+      }
 
       await refreshAccess();
       setPollingCount(prev => prev + 1);
@@ -79,45 +102,47 @@ export default function PaymentSuccess() {
 
   // Update subscription status when data changes
   useEffect(() => {
+    console.log('Subscription data:', { 
+      is_active: subscription?.is_active, 
+      plan_type: subscription?.plan_type,
+      isRefreshing 
+    });
+    
     if (subscription?.is_active && (subscription.plan_type === 'trial' || subscription.plan_type === 'premium')) {
+      console.log('✅ Subscription active - stopping refresh');
       setSubscriptionStatus(subscription.plan_type);
       setIsRefreshing(false);
     }
-  }, [subscription]);
+  }, [subscription, isRefreshing]);
 
   // Timeout fallback: Stop loading after 30 seconds even if subscription not updated
   useEffect(() => {
     const timeout = setTimeout(() => {
-      if (isRefreshing) {
-        console.warn('Payment success page timeout - stopping refresh');
-        setIsRefreshing(false);
-        // If we have any subscription data, use it
-        if (subscription?.plan_type) {
-          setSubscriptionStatus(subscription.plan_type);
-        }
+      console.warn('Payment success page timeout - stopping refresh');
+      setIsRefreshing(false);
+      // If we have any subscription data, use it
+      if (subscription?.plan_type) {
+        setSubscriptionStatus(subscription.plan_type);
       }
     }, 30000); // 30 seconds
 
     return () => clearTimeout(timeout);
-  }, [isRefreshing, subscription]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only set timeout once on mount
 
+  // Handle initial setup - run once on mount
   useEffect(() => {
     const handleSuccess = async () => {
-      setIsRefreshing(true);
-
       // Get payment type and category from URL params
       const paymentType = searchParams.get('type') as 'subscription' | 'unlock' | null;
       const category = searchParams.get('category');
 
       // Initial wait for Stripe webhook to process
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      await new Promise(resolve => setTimeout(resolve, 2000));
 
       if (paymentType) {
         await handlePaymentSuccess(paymentType, category || undefined, sessionId || undefined);
       }
-
-      // Start polling for subscription updates
-      await refreshAccess();
 
       // Invalidate all product search queries to ensure fresh access permissions
       queryClient.invalidateQueries({
@@ -131,7 +156,8 @@ export default function PaymentSuccess() {
     };
 
     handleSuccess();
-  }, [searchParams, refreshAccess, handlePaymentSuccess, queryClient, sessionId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   if (isRefreshing || loading) {
     return (
