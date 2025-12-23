@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, MapPin, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { detectUserCountry, storeCountry, setLocationPermission, getStoredCountry } from '@/utils/locationUtils';
 
 interface LocationPermissionBannerProps {
   detectedCountry?: string;
@@ -20,16 +21,23 @@ export const LocationPermissionBanner: React.FC<LocationPermissionBannerProps> =
   onDismiss,
 }) => {
   const [showBanner, setShowBanner] = useState(() => {
+    // Check if country is already stored in localStorage
+    const storedCountry = getStoredCountry();
+    if (storedCountry) {
+      return false; // Don't show banner if country is already stored
+    }
+    
     // Check localStorage on mount - don't show if already dismissed
     const dismissed = localStorage.getItem(LOCATION_BANNER_DISMISSED_KEY);
     const permissionGranted = localStorage.getItem(LOCATION_PERMISSION_GRANTED_KEY);
     return !dismissed && !permissionGranted;
   });
   const [locationDetected, setLocationDetected] = useState(false);
+  const [isDetecting, setIsDetecting] = useState(false);
 
   useEffect(() => {
     // Check if location was already detected
-    if (detectedCountry && detectedCountry !== 'India') {
+    if (detectedCountry && detectedCountry !== 'United States') {
       setLocationDetected(true);
       // Store that location was detected
       localStorage.setItem(LOCATION_PERMISSION_GRANTED_KEY, 'true');
@@ -43,35 +51,35 @@ export const LocationPermissionBanner: React.FC<LocationPermissionBannerProps> =
   }, [detectedCountry, onDismiss]);
 
   const handleRequestLocation = async () => {
+    setIsDetecting(true);
     try {
       if (!navigator.geolocation) {
         alert('Geolocation is not supported by your browser');
+        setIsDetecting(false);
         return;
       }
 
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          console.log('Location permission granted:', position.coords);
-          setLocationDetected(true);
-          // Store permission granted in localStorage
-          localStorage.setItem(LOCATION_PERMISSION_GRANTED_KEY, 'true');
-          // Auto-hide after getting permission
-          setTimeout(() => {
-            setShowBanner(false);
-            onDismiss();
-          }, 2000);
-        },
-        (error) => {
-          console.warn('Location permission denied:', error);
-          // Store dismissal even if denied
-          localStorage.setItem(LOCATION_BANNER_DISMISSED_KEY, 'true');
-          alert('Location permission was denied. We\'ll use IP-based detection instead.');
-          setShowBanner(false);
-          onDismiss();
-        }
-      );
+      // Use the utility function to detect country
+      const country = await detectUserCountry();
+      
+      console.log('Detected country:', country);
+      setLocationDetected(true);
+      
+      // Auto-hide after getting location
+      setTimeout(() => {
+        setShowBanner(false);
+        onDismiss();
+        // Reload to apply new country
+        window.location.reload();
+      }, 2000);
     } catch (error) {
       console.error('Error requesting location:', error);
+      // Store dismissal even if error
+      localStorage.setItem(LOCATION_BANNER_DISMISSED_KEY, 'true');
+      setShowBanner(false);
+      onDismiss();
+    } finally {
+      setIsDetecting(false);
     }
   };
 
@@ -119,10 +127,11 @@ export const LocationPermissionBanner: React.FC<LocationPermissionBannerProps> =
           <Button
             size="sm"
             onClick={handleRequestLocation}
+            disabled={isDetecting}
             className="bg-blue-600 hover:bg-blue-700 text-white h-8 px-3 text-sm"
           >
             <MapPin className="w-3.5 h-3.5 mr-1.5" />
-            Enable Location
+            {isDetecting ? 'Detecting...' : 'Enable Location'}
           </Button>
           <Button
             size="sm"

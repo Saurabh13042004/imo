@@ -1,6 +1,7 @@
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { getCachedZipcode, cacheZipcode, getUserZipcode } from '@/utils/geolocation';
+import { getCountryForSearch, storeCountry, getStoredCountry } from '@/utils/locationUtils';
 
 export const useSearchUrl = () => {
   const navigate = useNavigate();
@@ -13,43 +14,50 @@ export const useSearchUrl = () => {
   // Auto-detect user location on mount
   useEffect(() => {
     const initializeLocation = async () => {
-      // First check if we have a cached location from previous session
-      const cached = getCachedZipcode();
-      const cachedCountry = localStorage.getItem('userCountry');
-      const cachedCity = localStorage.getItem('userCity');
+      // First check localStorage for country
+      const storedCountry = getStoredCountry();
       
-      if (cached && cachedCountry) {
-        setDetectedZipcode(cached);
-        setDetectedCountry(cachedCountry);
+      if (storedCountry) {
+        setDetectedCountry(storedCountry);
+        
+        // Also check for cached zipcode and city
+        const cached = getCachedZipcode();
+        const cachedCity = localStorage.getItem('userCity');
+        
+        if (cached) setDetectedZipcode(cached);
         if (cachedCity) setDetectedCity(cachedCity);
         return;
       }
 
-      // If no cache and not from URL params, attempt to detect location
-      const urlZipcode = searchParams.get('zipcode');
+      // If no stored country and not from URL params, attempt to detect
       const urlCountry = searchParams.get('country');
       
-      if (!urlZipcode || !urlCountry) {
+      if (!urlCountry) {
         setIsDetectingLocation(true);
         try {
+          // Try to get location from IP (includes country)
           const result = await getUserZipcode();
           if (result) {
+            // Store all detected information
             cacheZipcode(result.zipcode);
-            localStorage.setItem('userCountry', result.country);
-            if (result.city) localStorage.setItem('userCity', result.city);
-            
-            setDetectedZipcode(result.zipcode);
+            storeCountry(result.country);  // Store the full country name
             setDetectedCountry(result.country);
-            if (result.city) setDetectedCity(result.city);
+            
+            if (result.city) {
+              localStorage.setItem('userCity', result.city);
+              setDetectedCity(result.city);
+            }
+            setDetectedZipcode(result.zipcode);
           } else {
-            // Fallback to defaults
+            // Fallback to location utilities if getUserZipcode fails
+            const country = await getCountryForSearch();
+            setDetectedCountry(country);
             setDetectedZipcode('60607');
-            setDetectedCountry('US');
           }
         } catch (error) {
           console.error('Error detecting location:', error);
+          setDetectedCountry('United States');
           setDetectedZipcode('60607');
-          setDetectedCountry('US');
         } finally {
           setIsDetectingLocation(false);
         }
@@ -62,7 +70,7 @@ export const useSearchUrl = () => {
   // Get query and geo parameters from URL search params
   // Use detected location with fallbacks
   const query = searchParams.get('q') || '';
-  const country = searchParams.get('country') || detectedCountry || localStorage.getItem('userCountry') || 'US';
+  const country = searchParams.get('country') || detectedCountry || getStoredCountry() || 'United States';
   const city = searchParams.get('city') || detectedCity || localStorage.getItem('userCity') || '';
   const language = searchParams.get('language') || 'en';
   const zipcode = searchParams.get('zipcode') || detectedZipcode || getCachedZipcode() || '60607';
@@ -83,7 +91,7 @@ export const useSearchUrl = () => {
       const trimmedQuery = searchQuery.trim();
       // Persist values to localStorage
       localStorage.setItem('userZipcode', finalZipcode);
-      localStorage.setItem('userCountry', finalCountry);
+      storeCountry(finalCountry);  // Use utility function
       localStorage.setItem('userCity', finalCity);
       localStorage.setItem('userLanguage', finalLanguage);
       
@@ -91,7 +99,8 @@ export const useSearchUrl = () => {
       params.set('q', trimmedQuery);
       params.set('country', finalCountry);
       params.set('zipcode', finalZipcode);
-      if (finalCity) params.set('city', finalCity);
+      // Only include city if it's explicitly provided in this search
+      if (newCity) params.set('city', newCity);
       if (finalLanguage !== 'en') params.set('language', finalLanguage);
       
       navigate(`/search?${params.toString()}`);
@@ -120,9 +129,12 @@ export const useSearchUrl = () => {
   };
 
   const updateCountry = (newCountry: string) => {
-    localStorage.setItem('userCountry', newCountry);
+    storeCountry(newCountry);  // Use utility function
+    // Clear city when country changes to avoid mismatch
+    localStorage.removeItem('userCity');
+    setDetectedCity(null);
     if (query) {
-      updateSearchUrl(query, zipcode, newCountry, city, language);
+      updateSearchUrl(query, zipcode, newCountry, '', language);
     }
   };
 

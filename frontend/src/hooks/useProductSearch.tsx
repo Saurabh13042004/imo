@@ -40,7 +40,7 @@ export function useProductSearch({
 	minImoScore,
 	minRating,
 	zipcode = "60607",
-	country = "India",
+	country = "United States",
 	city = "",
 	language = "en",
 }: SearchProductsParams) {

@@ -15,7 +15,7 @@ from app.models.short_video_review import ShortVideoReview
 from app.models.user import Profile, UserRole
 
 # Subscription and payment models
-from app.models.subscription import Subscription, PaymentTransaction, SearchUnlock
+from app.models.subscription import Subscription, PaymentTransaction, SearchUnlock, DailySearchUsage, PriceAlert
 
 # Analytics and logging models
 from app.models.analytics import AnalyticsEvent, ErrorLog, UsageLog, UserInteraction, SubscriptionEvent
@@ -50,6 +50,8 @@ __all__ = [
     "Subscription",
     "PaymentTransaction",
     "SearchUnlock",
+    "DailySearchUsage",
+    "PriceAlert",
     # Analytics
     "AnalyticsEvent",
     "ErrorLog",

@@ -3,10 +3,28 @@
  * Centralized API endpoint configuration and HTTP client
  */
 
+import { getSessionId } from '@/utils/sessionUtils';
+
 const API_URL =
   process.env.NODE_ENV === "production"
     ? "https://imo-6g57.onrender.com"
     : "http://localhost:8000";
+
+/**
+ * Get auth token from sessionStorage
+ */
+function getAuthToken(): string | null {
+  try {
+    const tokens = sessionStorage.getItem('auth_tokens');
+    if (tokens) {
+      const parsed = JSON.parse(tokens);
+      return parsed.accessToken;
+    }
+  } catch (error) {
+    console.error('Error getting auth token:', error);
+  }
+  return null;
+}
 
 /**
  * Generic fetch wrapper for API calls
@@ -16,12 +34,20 @@ async function apiCall<T>(
   options?: RequestInit
 ): Promise<T> {
   const url = `${API_URL}${endpoint}`;
+  
+  // Get session ID for guest users
+  const sessionId = getSessionId();
+  
+  // Get auth token if available
+  const authToken = getAuthToken();
 
   try {
     const response = await fetch(url, {
       ...options,
       headers: {
         "Content-Type": "application/json",
+        "X-Session-ID": sessionId,  // Always send session ID
+        ...(authToken && { "Authorization": `Bearer ${authToken}` }),  // Include auth token if available
         ...options?.headers,
       },
     });
@@ -85,7 +111,7 @@ export async function searchProducts(
     body: JSON.stringify({
       keyword: request.keyword,
       zipcode: request.zipcode || "60607",
-      country: request.country || "India",
+      country: request.country || "United States",
       city: request.city || "",
       language: request.language || "en",
     }),

@@ -1,6 +1,6 @@
 """Subscription and payment related models."""
 from datetime import datetime
-from sqlalchemy import Column, String, Numeric, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, String, Numeric, Boolean, DateTime, Date, Integer, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -91,4 +91,24 @@ class PriceAlert(Base):
 
     # Relationships
     user = relationship('Profile', back_populates='price_alerts', foreign_keys=[user_id])
+
+
+class DailySearchUsage(Base):
+    """Track daily search usage for free users."""
+    __tablename__ = 'daily_search_usage'
+
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    user_id = Column(PG_UUID(as_uuid=True), ForeignKey('profiles.id'), nullable=True, index=True)  # nullable for guest users
+    session_id = Column(String, nullable=True, index=True)  # For tracking guest users
+    search_date = Column(Date, nullable=False, index=True)  # Date of search (without time)
+    search_count = Column(Integer, default=0, nullable=False)  # Number of searches performed
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Unique constraint: one record per user per day (or session per day for guests)
+    __table_args__ = (
+        # For registered users: unique by user_id + date
+        # For guest users: unique by session_id + date
+        {'schema': None}
+    )
 

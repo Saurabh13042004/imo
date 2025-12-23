@@ -35,6 +35,7 @@ const Search = () => {
 	const [productDisplayLimit, setProductDisplayLimit] = useState(5);
 	const [clearedProducts, setClearedProducts] = useState<any[]>([]);
 	const [lastQuery, setLastQuery] = useState<string>("");
+	const [searchCounted, setSearchCounted] = useState(false);
 	const [dismissLocationBanner, setDismissLocationBanner] = useState(() => {
 		// Check localStorage on mount
 		return localStorage.getItem('location-banner-dismissed') === 'true' || 
@@ -64,6 +65,7 @@ const Search = () => {
 			setClearedProducts([]);
 			setLastQuery(query);
 			setPage(1);
+			setSearchCounted(false); // Reset count flag for new query
 		}
 	}, [query, lastQuery]);
 
@@ -115,12 +117,6 @@ const Search = () => {
 		window.scrollTo({ top: 0, behavior: "smooth" });
 		setHasSubmitted(true);
 		setPage(1);
-
-		// Increment guest search count AFTER successful search initiation
-		if (!user) {
-			incrementGuestSearchCount();
-			setRemainingSearches(getRemainingGuestSearches());
-		}
 	};
 
 	const handlePageChange = (newPage: number) => {
@@ -137,31 +133,38 @@ const Search = () => {
 		setPage(newPage);
 	};
 
+	// Auto-trigger search when URL has query parameter (direct navigation)
 	useEffect(() => {
-		if (query?.trim()) {
+		if (query?.trim() && !hasSubmitted) {
 			// Check if guest user has searches remaining
 			if (!user && !hasGuestSearchesRemaining()) {
 				setSearchesExhausted(true);
 				setHasSubmitted(true);
 				return;
 			}
+			
+			// Trigger search automatically for direct URL navigation
+			setIsLoading(true);
 			setHasSubmitted(true);
-			setSearchesExhausted(false);
-		} else {
-			setHasSubmitted(false);
-			setSearchesExhausted(false);
 		}
-	}, [query, user]);
+	}, [query, hasSubmitted, user]);
 
-	// Clear loading when results arrive
+	// Clear loading and increment guest count when results arrive
 	useEffect(() => {
 		if (isLoading && products.length > 0) {
+			// Increment guest search count only once per search after successful results
+			if (!user && hasSubmitted && !searchCounted) {
+				incrementGuestSearchCount();
+				setRemainingSearches(getRemainingGuestSearches());
+				setSearchCounted(true); // Mark this search as counted
+			}
+			
 			const timer = setTimeout(() => {
 				setIsLoading(false);
 			}, 300);
 			return () => clearTimeout(timer);
 		}
-	}, [products, isLoading]);
+	}, [products, isLoading, user, hasSubmitted, searchCounted]);
 
 	// Load guest search count on mount and set product display limit
 	useEffect(() => {

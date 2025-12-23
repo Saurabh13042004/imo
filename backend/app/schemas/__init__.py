@@ -190,6 +190,8 @@ class SearchResponse(BaseModel):
     language: Optional[str]
     total_results: int
     results: List[ProductResponse] = Field(default_factory=list)
+    remaining_searches: Optional[int] = None  # Number of searches remaining (None for unlimited)
+    search_limit_message: Optional[str] = None  # Message about search limits
 
 
 class ReviewsRequest(BaseModel):

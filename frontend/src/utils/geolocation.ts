@@ -15,10 +15,70 @@ interface GeolocationResult {
   zipcode: string;
   city: string;
   state: string;
-  country: string;  // Country code (US, IN, etc.)
-  countryName?: string;  // Full country name
+  country: string;  // Full country name (India, United States, etc.)
+  countryCode?: string;  // Country code (IN, US, etc.)
   latitude?: number;
   longitude?: number;
+}
+
+/**
+ * Map country codes to full country names
+ */
+const COUNTRY_CODE_MAP: Record<string, string> = {
+  'US': 'United States',
+  'IN': 'India',
+  'GB': 'United Kingdom',
+  'CA': 'Canada',
+  'AU': 'Australia',
+  'DE': 'Germany',
+  'FR': 'France',
+  'JP': 'Japan',
+  'CN': 'China',
+  'BR': 'Brazil',
+  'MX': 'Mexico',
+  'IT': 'Italy',
+  'ES': 'Spain',
+  'KR': 'South Korea',
+  'NL': 'Netherlands',
+  'SE': 'Sweden',
+  'CH': 'Switzerland',
+  'PL': 'Poland',
+  'BE': 'Belgium',
+  'NO': 'Norway',
+  'AT': 'Austria',
+  'DK': 'Denmark',
+  'FI': 'Finland',
+  'IE': 'Ireland',
+  'NZ': 'New Zealand',
+  'SG': 'Singapore',
+  'MY': 'Malaysia',
+  'TH': 'Thailand',
+  'ID': 'Indonesia',
+  'PH': 'Philippines',
+  'VN': 'Vietnam',
+  'SA': 'Saudi Arabia',
+  'AE': 'United Arab Emirates',
+  'IL': 'Israel',
+  'TR': 'Turkey',
+  'RU': 'Russia',
+  'UA': 'Ukraine',
+  'PK': 'Pakistan',
+  'BD': 'Bangladesh',
+  'NG': 'Nigeria',
+  'EG': 'Egypt',
+  'ZA': 'South Africa',
+  'AR': 'Argentina',
+  'CL': 'Chile',
+  'CO': 'Colombia',
+  'PE': 'Peru',
+  'VE': 'Venezuela',
+};
+
+/**
+ * Convert country code to full country name
+ */
+function getCountryName(countryCode: string): string {
+  return COUNTRY_CODE_MAP[countryCode.toUpperCase()] || countryCode;
 }
 
 /**
@@ -105,12 +165,16 @@ async function getLocationFromIPInfo(): Promise<GeolocationResult | null> {
       zipcode = zipcode.substring(0, 5);
     }
 
+    // Get country code and convert to full name
+    const countryCode = data.country || "US";
+    const countryName = getCountryName(countryCode);
+
     return {
       zipcode: zipcode,
       city: data.city || "",
       state: data.region || "",
-      country: data.country_code || data.country || "US",
-      countryName: data.country_name || "",
+      country: countryName,  // Use full country name
+      countryCode: countryCode,  // Store code as well
       latitude: data.loc ? parseFloat(data.loc.split(",")[0]) : undefined,
       longitude: data.loc ? parseFloat(data.loc.split(",")[1]) : undefined,
     };
@@ -145,12 +209,16 @@ async function getLocationFromBackendProxy(): Promise<GeolocationResult | null> 
       return null;
     }
 
+    // Get country code and convert to full name
+    const countryCode = data.country_code || data.country || "US";
+    const countryName = getCountryName(countryCode);
+
     return {
       zipcode: data.zipcode.substring(0, 5),
       city: data.city || "",
       state: data.state || "",
-      country: data.country_code || data.country || "US",
-      countryName: data.country_name || "",
+      country: countryName,  // Use full country name
+      countryCode: countryCode,
       latitude: data.latitude,
       longitude: data.longitude,
     };
@@ -192,8 +260,8 @@ async function getLocationFromBrowser(): Promise<GeolocationResult | null> {
               zipcode,
               city: "",
               state: "",
-              country: "US",  // Browser geolocation typically returns US coordinates
-              countryName: "United States",
+              country: "United States",  // Use full name
+              countryCode: "US",  // Browser geolocation typically returns US coordinates
               latitude,
               longitude,
             });

@@ -3,7 +3,7 @@
 /**
  * Configuration keys (loaded from environment or defaults)
  * Environment variables:
- * - VITE_GUEST_FREE_SEARCHES: Number of free searches for guests (default: 1)
+ * - VITE_GUEST_FREE_SEARCHES: Number of free searches for guests per session (default: 1)
  * - VITE_GUEST_PRODUCT_DISPLAY_LIMIT: Products shown per search for guests (default: 5)
  * - VITE_FREE_TIER_PRODUCT_DISPLAY_LIMIT: Products shown for free-tier users (default: 10)
  * - VITE_PAID_TIER_PRODUCT_DISPLAY_LIMIT: Products shown for paid users (default: 50)
@@ -21,20 +21,25 @@ const PAID_TIER_PRODUCT_DISPLAY_LIMIT = parseInt(
   import.meta.env.VITE_PAID_TIER_PRODUCT_DISPLAY_LIMIT || '50'
 );
 
+// Use sessionStorage for guest searches (resets when browser closes)
 const GUEST_SEARCH_COUNT_KEY = 'imo_guest_search_count';
-const GUEST_SEARCH_DATE_KEY = 'imo_guest_search_date';
-const GUEST_FREE_SEARCHES_KEY = 'freeseearches';
 
-// Initialize localStorage for new users
-if (typeof window !== 'undefined') {
-  if (localStorage.getItem(GUEST_FREE_SEARCHES_KEY) === null) {
-    localStorage.setItem(GUEST_FREE_SEARCHES_KEY, '0');
-  }
+// ============================================================================
+// GUEST SEARCH MANAGEMENT (Session-based)
+// ============================================================================
+
+/**
+ * Get the current guest search count from session storage
+ * Session storage resets when browser/tab is closed - perfect for guest limits
+ */
+export function getGuestSearchCount(): number {
+  if (typeof window === 'undefined') return 0;
+
+  return parseInt(
+    sessionStorage.getItem(GUEST_SEARCH_COUNT_KEY) || '0',
+    10
+  );
 }
-
-// ============================================================================
-// GUEST SEARCH MANAGEMENT
-// ============================================================================
 
 /**
  * Get the number of free searches remaining for guest users
@@ -42,23 +47,8 @@ if (typeof window !== 'undefined') {
 export function getRemainingGuestSearches(): number {
   if (typeof window === 'undefined') return GUEST_FREE_SEARCHES;
 
-  const count = parseInt(
-    localStorage.getItem(GUEST_SEARCH_COUNT_KEY) || '0',
-    10
-  );
+  const count = getGuestSearchCount();
   return Math.max(0, GUEST_FREE_SEARCHES - count);
-}
-
-/**
- * Get the current guest search count
- */
-export function getGuestSearchCount(): number {
-  if (typeof window === 'undefined') return 0;
-
-  return parseInt(
-    localStorage.getItem(GUEST_SEARCH_COUNT_KEY) || '0',
-    10
-  );
 }
 
 /**
@@ -69,35 +59,25 @@ export function hasGuestSearchesRemaining(): boolean {
 }
 
 /**
- * Increment the guest search counter
+ * Increment the guest search counter in session storage
  */
 export function incrementGuestSearchCount(): void {
   if (typeof window === 'undefined') return;
 
   const currentCount = getGuestSearchCount();
-  const today = new Date().toDateString();
-  const lastDate = localStorage.getItem(GUEST_SEARCH_DATE_KEY);
-
-  // Reset counter if it's a new day
-  if (lastDate !== today) {
-    localStorage.setItem(GUEST_SEARCH_COUNT_KEY, '1');
-    localStorage.setItem(GUEST_SEARCH_DATE_KEY, today);
-  } else {
-    localStorage.setItem(
-      GUEST_SEARCH_COUNT_KEY,
-      String(Math.min(currentCount + 1, GUEST_FREE_SEARCHES))
-    );
-  }
+  sessionStorage.setItem(
+    GUEST_SEARCH_COUNT_KEY,
+    String(currentCount + 1)
+  );
 }
 
 /**
- * Reset guest search counter (useful for testing or manual reset)
+ * Reset guest search counter (useful for testing)
  */
 export function resetGuestSearchCount(): void {
   if (typeof window === 'undefined') return;
 
-  localStorage.removeItem(GUEST_SEARCH_COUNT_KEY);
-  localStorage.removeItem(GUEST_SEARCH_DATE_KEY);
+  sessionStorage.removeItem(GUEST_SEARCH_COUNT_KEY);
 }
 
 /**
