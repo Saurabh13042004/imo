@@ -3,12 +3,14 @@
 import logging
 import logging.config
 from contextlib import asynccontextmanager
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db, close_db
@@ -105,6 +107,11 @@ app.add_middleware(
 # GZIP compression
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
+# Create static directory if it doesn't exist
+os.makedirs("static/uploads/avatars", exist_ok=True)
+
+# Serve static files
+app.mount("/uploads", StaticFiles(directory="static/uploads"), name="uploads")
 
 # Include API routes
 app.include_router(api_router)

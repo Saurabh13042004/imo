@@ -1,307 +1,383 @@
-import { Link } from "react-router-dom";
-import { Search, ArrowRight, Sparkles, Play, Zap, Eye, TrendingUp, Star } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { motion } from "framer-motion";
+'use client';
+
+import { motion } from 'framer-motion';
+import { Search, Play, ChevronDown, Sparkles, Zap } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Link } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
+import { useSearchUrl } from '@/hooks/useSearchUrl';
+import { useNavigate } from 'react-router-dom';
+import { useState } from 'react';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 
 interface HeroSectionProps {
   className?: string;
 }
 
-export const HeroSection = ({ className }: HeroSectionProps) => {
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.2,
+      delayChildren: 0.1,
+    },
+  },
+};
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.8, ease: 'easeOut' },
+  },
+};
+
+const AnimatedOrb = ({
+  delay,
+  duration,
+  size,
+  position,
+}: {
+  delay: number;
+  duration: number;
+  size: string;
+  position: string;
+}) => (
+  <motion.div
+    className={`absolute ${size} rounded-full blur-3xl opacity-30`}
+    style={{
+      background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.3), rgba(139, 92, 246, 0.3))',
+      ...Object.fromEntries(
+        position.split(' ').map((p, i) => {
+          const [key, val] = p.split('-');
+          return [i === 0 ? key : `${key}`, val];
+        })
+      ),
+    }}
+    animate={{
+      y: [0, 30, 0],
+      x: [0, 20, 0],
+    }}
+    transition={{
+      duration,
+      repeat: Infinity,
+      ease: 'easeInOut',
+      delay,
+    }}
+  />
+);
+
+export const HeroSection = ({ className = '' }: HeroSectionProps) => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [videoOpen, setVideoOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+    navigate(`/search?q=${encodeURIComponent(searchQuery)}`);
+  };
+
+  const scrollToSection = () => {
+    const element = document.getElementById('featured-products');
+    element?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   return (
-    <section 
-      className={`relative z-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 overflow-hidden ${className}`}
-    >
-      {/* Background Elements - Hidden on Mobile */}
-      <motion.div 
-        className="hidden md:block absolute top-20 left-1/4 w-72 h-72 bg-primary/10 rounded-full blur-3xl"
-        animate={{
-          scale: [1, 1.2, 1],
-          opacity: [0.3, 0.5, 0.3],
-        }}
-        transition={{
-          duration: 8,
-          repeat: Infinity,
-          ease: "easeInOut"
-        }}
-      />
-      <motion.div 
-        className="hidden md:block absolute bottom-20 right-1/4 w-96 h-96 bg-accent/10 rounded-full blur-3xl"
-        animate={{
-          scale: [1.2, 1, 1.2],
-          opacity: [0.2, 0.4, 0.2],
-        }}
-        transition={{
-          duration: 10,
-          repeat: Infinity,
-          ease: "easeInOut"
-        }}
-      />
+    <div className={`relative w-full overflow-hidden ${className}`}>
+      {/* Animated Background Orbs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <AnimatedOrb
+          delay={0}
+          duration={8}
+          size="w-96 h-96"
+          position="top-20 -left-48"
+        />
+        <AnimatedOrb
+          delay={2}
+          duration={10}
+          size="w-80 h-80"
+          position="top-40 right-0"
+        />
+        <AnimatedOrb
+          delay={1}
+          duration={12}
+          size="w-72 h-72"
+          position="bottom-20 left-1/3"
+        />
+      </div>
 
-      {/* Mobile App-style Content */}
-      <div className="md:hidden text-center py-8 px-4 relative z-10">
-        {/* App Icon */}
-        <motion.div 
-          className="flex items-center justify-center mb-6"
-          initial={{ opacity: 0, scale: 0 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.6, type: "spring" }}
-        >
-          <div className="bg-gradient-to-br from-primary to-accent p-4 rounded-3xl shadow-lg">
-            <Sparkles className="h-8 w-8 text-white" />
-          </div>
+      {/* Gradient Overlay */}
+      <div className="absolute inset-0 bg-gradient-to-b from-background via-transparent to-background pointer-events-none" />
+
+      {/* Mobile Hero Section */}
+      <motion.section
+        className="md:hidden relative z-10 px-4 py-12 sm:py-16"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        <motion.div variants={itemVariants} className="text-center mb-8">
+          <motion.div
+            initial={{ opacity: 0, scale: 0 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.6 }}
+            className="inline-flex items-center gap-2 bg-primary/10 px-3 py-1 rounded-full mb-4"
+          >
+            <Sparkles className="w-4 h-4 text-primary" />
+            <span className="text-sm text-primary font-medium">
+              AI-Powered Product Research
+            </span>
+          </motion.div>
+
+          <h1 className="text-4xl font-bold tracking-tight mb-4 text-foreground">
+            Find the Perfect{' '}
+            <span className="bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent">
+              Product
+            </span>
+          </h1>
+
+          <p className="text-base text-muted-foreground mb-8 leading-relaxed">
+            Get AI-powered insights on products before you buy. Compare features, read smart summaries, and make confident decisions.
+          </p>
         </motion.div>
-        
-        {/* Mobile App Title */}
-        <motion.h1 
-          className="text-3xl font-bold tracking-tight mb-4 text-foreground"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.6 }}
-        >
-          Make better{" "}
-          <span className="bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-            buying decisions
-          </span>
-        </motion.h1>
-        
-        {/* Mobile Subtitle */}
-        <motion.p 
-          className="text-base text-muted-foreground mb-8 leading-relaxed px-2"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4, duration: 0.6 }}
-        >
-          AI-powered product research in seconds
-        </motion.p>
 
-        {/* Mobile Search CTA */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6, duration: 0.6 }}
+        {/* Mobile Search */}
+        <motion.form
+          variants={itemVariants}
+          onSubmit={handleSearch}
           className="mb-8"
         >
-          <Button asChild size="lg" className="w-full bg-gradient-to-r from-primary to-accent hover:from-primary/90 hover:to-accent/90 rounded-xl px-6 h-12 text-base font-medium border-0 shadow-lg">
-            <Link to="/search" className="flex items-center justify-center space-x-3">
-              <Search className="h-5 w-5" />
-              <span>Start Searching Products</span>
-              <ArrowRight className="h-5 w-5" />
-            </Link>
+          <div className="flex gap-2">
+            <Input
+              type="text"
+              placeholder="Search products..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 px-4 py-3 rounded-lg"
+            />
+            <Button
+              type="submit"
+              size="sm"
+              className="px-4 bg-primary hover:bg-primary/90"
+            >
+              <Search className="w-4 h-4" />
+            </Button>
+          </div>
+        </motion.form>
+
+        {/* Mobile CTA */}
+        <motion.div variants={itemVariants} className="flex gap-3">
+          <Button
+            asChild
+            className="flex-1 bg-primary hover:bg-primary/90 text-white h-12 rounded-lg"
+          >
+            <Link to="/search">Start Searching</Link>
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setVideoOpen(true)}
+            className="flex-1 h-12 rounded-lg"
+          >
+            <Play className="w-4 h-4 mr-2" />
+            Watch
           </Button>
         </motion.div>
 
-        {/* Mobile Feature Cards */}
-        <motion.div 
-          className="grid grid-cols-2 gap-3 mb-8"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.8, duration: 0.6 }}
+        {/* Mobile Stats */}
+        <motion.div
+          variants={itemVariants}
+          className="grid grid-cols-3 gap-4 mt-8 pt-8 border-t"
         >
           {[
-            { icon: Zap, title: "Instant", desc: "AI Analysis" },
-            { icon: Eye, title: "Compare", desc: "Products" },
-            { icon: TrendingUp, title: "Track", desc: "Trends" },
-            { icon: Star, title: "Reviews", desc: "Summary" }
-          ].map((feature, index) => (
-            <motion.div
-              key={index}
-              className="bg-card/50 backdrop-blur-sm border rounded-xl p-3 text-center"
-              whileHover={{ scale: 1.05 }}
-              transition={{ type: "spring", stiffness: 400, damping: 17 }}
-            >
-              <feature.icon className="h-6 w-6 text-primary mx-auto mb-2" />
-              <div className="text-xs font-semibold text-foreground">{feature.title}</div>
-              <div className="text-xs text-muted-foreground">{feature.desc}</div>
-            </motion.div>
+            { number: '10K+', label: 'Products' },
+            { number: '500+', label: 'Videos' },
+            { number: '98%', label: 'Accuracy' },
+          ].map((stat, index) => (
+            <div key={index} className="text-center">
+              <div className="text-xl font-bold text-foreground">{stat.number}</div>
+              <div className="text-xs text-muted-foreground">{stat.label}</div>
+            </div>
           ))}
         </motion.div>
+      </motion.section>
 
-        {/* Mobile Trust Indicators */}
-        <motion.div 
-          className="flex items-center justify-center gap-6 text-xs text-muted-foreground"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.0, duration: 0.6 }}
+      {/* Desktop Hero Section */}
+      <motion.section
+        className="hidden md:flex relative z-10 min-h-screen flex-col items-center justify-center px-6 py-20"
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+      >
+        {/* Badge */}
+        <motion.div
+          variants={itemVariants}
+          className="inline-flex items-center gap-2 bg-primary/10 px-4 py-2 rounded-full mb-8"
         >
-          <div className="text-center">
-            <div className="font-semibold text-foreground">10K+</div>
-            <div>Products</div>
-          </div>
-          <div className="w-px h-8 bg-border"></div>
-          <div className="text-center">
-            <div className="font-semibold text-foreground">500+</div>
-            <div>Videos</div>
-          </div>
-          <div className="w-px h-8 bg-border"></div>
-          <div className="text-center">
-            <div className="font-semibold text-foreground">98%</div>
-            <div>Accuracy</div>
-          </div>
+          <span className="text-sm font-medium">📌 Featured on Product Hunt</span>
         </motion.div>
-      </div>
 
-      {/* Desktop Content */}
-      <div className="hidden md:block text-center py-20 relative z-10">
-        {/* Icon with enhanced animation */}
-        <motion.div 
-          className="flex items-center justify-center mb-8"
-          initial={{ opacity: 0, scale: 0, rotate: -180 }}
-          animate={{ opacity: 1, scale: 1, rotate: 0 }}
-          transition={{ 
-            duration: 1,
-            type: "spring",
-            stiffness: 200,
-            damping: 15
-          }}
+        {/* Main Heading */}
+        <motion.h1
+          variants={itemVariants}
+          className="text-6xl lg:text-7xl font-bold tracking-tight mb-6 text-center max-w-4xl"
         >
-          <div className="relative">
-            <motion.div 
-              className="bg-foreground p-4 rounded-xl shadow-sm hover-lift"
-              whileHover={{ 
-                scale: 1.1,
-                rotate: 5,
-                boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)"
-              }}
-              transition={{ type: "spring", stiffness: 400, damping: 17 }}
-            >
-              <Sparkles className="h-12 w-12 text-background" />
-            </motion.div>
-          </div>
-        </motion.div>
-        
-        {/* Main Heading with Blur Animation */}
-        <motion.h1 
-          className="text-5xl md:text-7xl font-heading font-bold tracking-tight mb-8 text-foreground"
-          initial={{ opacity: 0, filter: "blur(20px)", y: 30 }}
-          animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
-          transition={{ 
-            duration: 1.2, 
-            ease: [0.25, 0.4, 0.25, 1],
-            delay: 0.3 
-          }}
-        >
+          Find the Perfect{' '}
           <motion.span
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ delay: 0.8, duration: 0.8 }}
+            className="bg-gradient-to-r from-primary via-blue-500 to-purple-500 bg-clip-text text-transparent"
+            animate={{
+              backgroundPosition: ['0% center', '100% center', '0% center'],
+            }}
+            transition={{ duration: 6, repeat: Infinity }}
           >
-            Make better{" "}
+            Product
           </motion.span>
-          <motion.span 
-            className="bg-gradient-to-r from-primary via-primary/80 to-accent bg-clip-text text-transparent"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 1.0, duration: 0.8 }}
-          >
-            buying decisions
-          </motion.span>
-          <motion.span
-            initial={{ opacity: 0, scale: 0 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 1.4, duration: 0.5, type: "spring" }}
-            className="inline-block"
-          >
-            .
-          </motion.span>
+          {' '}for Any Need
         </motion.h1>
-        
+
         {/* Subtitle */}
-        <motion.p 
-          className="text-xl text-muted-foreground max-w-3xl mx-auto mb-12 leading-relaxed"
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ 
-            delay: 0.6, 
-            duration: 0.8,
-            ease: "easeOut" 
-          }}
+        <motion.p
+          variants={itemVariants}
+          className="text-xl text-muted-foreground mb-8 text-center max-w-2xl leading-relaxed"
         >
-          IMO uses AI to replace hours of research with one clear answer.
+          Get AI-powered insights on products before you buy. Compare features, read video summaries, and make confident decisions in seconds.
         </motion.p>
 
-        {/* CTA Buttons */}
-        <motion.div 
-          className="flex flex-col sm:flex-row items-center justify-center gap-6"
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ 
-            delay: 1.2, 
-            duration: 0.8,
-            ease: "easeOut" 
-          }}
+        {/* Search Bar */}
+        <motion.form
+          variants={itemVariants}
+          onSubmit={handleSearch}
+          className="w-full max-w-2xl mb-8"
         >
           <motion.div
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ type: "spring", stiffness: 400, damping: 17 }}
+            className="relative group"
+            whileHover={{ scale: 1.02 }}
+            transition={{ type: 'spring', stiffness: 300 }}
           >
-            <Button asChild size="lg" className="bg-accent hover:bg-accent/90 rounded-lg px-10 h-12 text-base font-medium border-0 hover-lift">
-              <Link to="/search" className="flex items-center space-x-3">
-                <Search className="h-5 w-5" />
-                <span>Start Searching</span>
-                <ArrowRight className="h-5 w-5" />
-              </Link>
-            </Button>
-          </motion.div>
-          
-          <motion.div
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            transition={{ type: "spring", stiffness: 400, damping: 17 }}
-          >
-            <Button 
-              variant="outline" 
-              size="lg" 
-              className="group relative overflow-hidden rounded-lg px-8 h-12 text-base font-normal transition-all duration-300 ease-in-out hover:bg-foreground hover:text-background motion-reduce:transition-none"
-            >
-              <motion.div
-                className="absolute inset-0 bg-foreground"
-                initial={{ scale: 0, opacity: 0 }}
-                whileHover={{ scale: 1, opacity: 1 }}
-                transition={{ duration: 0.3 }}
-                style={{ borderRadius: "inherit" }}
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/20 to-purple-500/20 rounded-xl blur opacity-0 group-hover:opacity-100 transition duration-500" />
+            <div className="relative flex items-center bg-card/50 backdrop-blur-xl border rounded-xl p-2">
+              <Search className="w-5 h-5 text-muted-foreground ml-4" />
+              <Input
+                type="text"
+                placeholder="Search for anything... (laptop, camera, headphones)"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="flex-1 border-0 bg-transparent px-4 py-3 text-lg placeholder:text-muted-foreground focus-visible:ring-0"
               />
-              <span className="relative z-10 flex items-center">
-                <Play className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform duration-200" />
-                Watch Video
-              </span>
-            </Button>
+              <motion.button
+                type="submit"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                className="mr-2 px-6 py-2 bg-primary hover:bg-primary/90 text-white rounded-lg font-medium transition-colors"
+              >
+                Search
+              </motion.button>
+            </div>
           </motion.div>
+
+          {!user && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-3 flex items-center justify-center gap-3 text-xs text-muted-foreground"
+            >
+              <div className="flex items-center gap-1">
+                <Zap className="w-3 h-3 text-yellow-500" />
+                <span>Get your free AI-powered search</span>
+              </div>
+              <div className="inline-flex items-center gap-1 bg-green-500/10 px-2 py-0.5 rounded-full">
+                <span className="text-xs font-medium text-green-600">✓ No signup required</span>
+              </div>
+            </motion.div>
+          )}
+        </motion.form>
+
+        {/* CTA Buttons */}
+        <motion.div
+          variants={itemVariants}
+          className="flex items-center gap-4 mb-8"
+        >
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => setVideoOpen(true)}
+            className="px-8 py-3 border border-foreground/20 rounded-lg font-medium hover:bg-foreground/5 transition-colors flex items-center gap-2 h-12"
+          >
+            <Play className="w-5 h-5" />
+            See How it Works
+          </motion.button>
         </motion.div>
 
-        {/* Stats with staggered animation */}
-        <motion.div 
-          className="flex items-center justify-center gap-8 mt-16"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.6, duration: 0.8 }}
+        {/* No Signup Required Badge */}
+
+
+        {/* Stats Grid */}
+        <motion.div
+          variants={itemVariants}
+          className="grid grid-cols-3 gap-8 mb-8 text-center"
         >
           {[
-            { value: "10K+", label: "Products Analyzed", delay: 0 },
-            { value: "500+", label: "Review Videos", delay: 0.2 },
-            { value: "98%", label: "Accuracy Rate", delay: 0.4 }
+            { number: '10K+', label: 'Products Analyzed' },
+            { number: '500+', label: 'Review Videos' },
+            { number: '98%', label: 'Accuracy' },
           ].map((stat, index) => (
             <motion.div
               key={index}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 1.8 + stat.delay, duration: 0.6 }}
-              className="text-center"
+              whileHover={{ scale: 1.1 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 17 }}
             >
-              <motion.div 
-                className="text-3xl font-medium text-foreground"
-                whileHover={{ scale: 1.1 }}
-                transition={{ type: "spring", stiffness: 400, damping: 17 }}
-              >
-                {stat.value}
-              </motion.div>
+              <div className="text-4xl font-bold text-foreground mb-2">
+                {stat.number}
+              </div>
               <div className="text-sm text-muted-foreground">{stat.label}</div>
-              {index < 2 && <div className="w-px h-12 bg-border absolute right-0 top-1/2 transform -translate-y-1/2"></div>}
             </motion.div>
           ))}
         </motion.div>
-      </div>
-    </section>
+
+        {/* Product Hunt Badge */}
+        {/* <motion.div
+          variants={itemVariants}
+          className="mb-4"
+        >
+          <a
+            href="https://www.producthunt.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-4 py-2 border rounded-lg text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <span>📌</span>
+            Featured on Product Hunt
+          </a>
+        </motion.div> */}
+
+        {/* Scroll CTA */}
+        <motion.button
+          onClick={scrollToSection}
+          className="mt-2"
+          animate={{ y: [0, 10, 0] }}
+          transition={{ duration: 2, repeat: Infinity }}
+        >
+          <ChevronDown className="w-6 h-6 text-muted-foreground hover:text-foreground transition-colors" />
+        </motion.button>
+      </motion.section>
+
+      {/* Video Modal */}
+      <Dialog open={videoOpen} onOpenChange={setVideoOpen}>
+        <DialogContent className="max-w-4xl">
+          <div className="aspect-video bg-black rounded-lg flex items-center justify-center">
+            <div className="text-center">
+              <Play className="w-16 h-16 text-white mx-auto mb-4" />
+              <p className="text-white text-lg">
+                Video Coming Soon
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 };

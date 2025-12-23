@@ -1,11 +1,21 @@
-// Simple auth context - no real authentication
+import { useAuthContext } from '@/contexts/AuthContext';
+
+/**
+ * Hook to access authentication context
+ * Provides user state and auth operations
+ */
 export function useAuth() {
+  const context = useAuthContext();
+
   return {
-    user: null,
-    session: null,
-    loading: false,
-    signOut: async () => {
-      console.log('Sign out requested (demo mode)');
-    },
+    user: context.user,
+    loading: context.loading,
+    isAuthenticated: context.isAuthenticated,
+    signOut: context.logout,
+    signIn: context.signIn,
+    signUp: context.signUp,
+    changePassword: context.changePassword,
+    refreshToken: context.refreshAccessToken,
+    accessToken: context.accessToken,
   };
 }

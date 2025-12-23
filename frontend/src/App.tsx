@@ -3,6 +3,9 @@ import { useLocation } from 'react-router-dom'
 import { useEffect } from 'react'
 import { Toaster } from 'react-hot-toast'
 
+// Auth Provider
+import { AuthProvider } from '@/contexts/AuthContext'
+
 // Pages
 import Index from '@/pages/Index'
 import Search from '@/pages/Search'
@@ -23,6 +26,7 @@ import NotFound from '@/pages/NotFound'
 import PaymentSuccess from '@/pages/PaymentSuccess'
 import PaymentCanceled from '@/pages/PaymentCanceled'
 import Checkout from '@/pages/Checkout'
+import { GoogleOAuthCallback } from '@/pages/GoogleOAuthCallback'
 
 // Layout
 import { Layout } from '@/components/layout/Layout'
@@ -39,34 +43,43 @@ function ScrollToTop() {
   return null;
 }
 
+function AppRoutes() {
+  return (
+    <Routes>
+      <Route path="/" element={<Index />} />
+      <Route path="/search" element={<Search />} />
+      <Route path="/product/:slug" element={<ProductDetails />} />
+      <Route path="/profile" element={<Profile />} />
+      <Route path="/likes" element={<Likes />} />
+      <Route path="/auth" element={<Auth />} />
+      <Route path="/auth/callback" element={<GoogleOAuthCallback />} />
+      <Route path="/pricing" element={<Pricing />} />
+      <Route path="/about" element={<About />} />
+      <Route path="/contact" element={<Contact />} />
+      <Route path="/cookies" element={<Cookies />} />
+      <Route path="/privacy" element={<Privacy />} />
+      <Route path="/refund" element={<Refund />} />
+      <Route path="/terms" element={<Terms />} />
+      <Route path="/faq" element={<Faq />} />
+      <Route path="/how-it-works" element={<HowItWorks />} />
+      <Route path="/checkout" element={<Checkout />} />
+      <Route path="/payment-success" element={<PaymentSuccess />} />
+      <Route path="/payment-canceled" element={<PaymentCanceled />} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  )
+}
+
 export default function App() {
   return (
     <Router>
-      <Toaster position="bottom-left" />
-      <ScrollToTop />
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Index />} />
-          <Route path="/search" element={<Search />} />
-          <Route path="/product/:slug" element={<ProductDetails />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/likes" element={<Likes />} />
-          <Route path="/auth" element={<Auth />} />
-          <Route path="/pricing" element={<Pricing />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/contact" element={<Contact />} />
-          <Route path="/cookies" element={<Cookies />} />
-          <Route path="/privacy" element={<Privacy />} />
-          <Route path="/refund" element={<Refund />} />
-          <Route path="/terms" element={<Terms />} />
-          <Route path="/faq" element={<Faq />} />
-          <Route path="/how-it-works" element={<HowItWorks />} />
-          <Route path="/checkout" element={<Checkout />} />
-          <Route path="/payment-success" element={<PaymentSuccess />} />
-          <Route path="/payment-canceled" element={<PaymentCanceled />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </Layout>
+      <AuthProvider>
+        <Toaster position="bottom-left" />
+        <ScrollToTop />
+        <Layout>
+          <AppRoutes />
+        </Layout>
+      </AuthProvider>
     </Router>
   )
 }

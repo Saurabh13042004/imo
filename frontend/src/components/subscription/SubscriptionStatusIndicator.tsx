@@ -1,6 +1,6 @@
 import { Badge } from '@/components/ui/badge';
 import { Crown, Sparkles, CheckCircle } from 'lucide-react';
-import { useUserAccess } from '@/hooks/useUserAccess';
+import { useAuth } from '@/hooks/useAuth';
 
 interface SubscriptionStatusIndicatorProps {
   variant?: 'badge' | 'text' | 'icon';
@@ -15,7 +15,10 @@ export function SubscriptionStatusIndicator({
   showDetails = false,
   className = ''
 }: SubscriptionStatusIndicatorProps) {
-  const { hasActiveSubscription, accessLevel, subscription } = useUserAccess();
+  const { user } = useAuth();
+  
+  // Check if user is logged in and has a premium subscription
+  const hasActiveSubscription = user && user.subscription_tier === 'premium';
 
   const sizeClasses = {
     sm: 'text-xs',
@@ -48,19 +51,11 @@ export function SubscriptionStatusIndicator({
           <>
             <Crown className={iconSizes[size]} />
             <span className="font-medium text-yellow-600">Premium</span>
-            {showDetails && subscription && (
-              <span className="text-muted-foreground">
-                (until {new Date(subscription.current_period_end).toLocaleDateString()})
-              </span>
-            )}
           </>
         ) : (
           <>
             <Sparkles className={iconSizes[size]} />
             <span className="text-muted-foreground">Free</span>
-            {showDetails && (
-              <span className="text-muted-foreground">(limited access)</span>
-            )}
           </>
         )}
       </div>

@@ -4,7 +4,6 @@ import { Link, useLocation } from "react-router-dom";
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { ThemeToggle } from "@/components/theme-toggle";
-import { AnimatedSearch } from "@/components/animated-search";
 import { UserMenu } from "@/components/auth/UserMenu";
 import { SubscriptionStatusIndicator } from "@/components/subscription/SubscriptionStatusIndicator";
 import { useAuth } from '@/hooks/useAuth';
@@ -82,9 +81,6 @@ export const SearchHeader = () => {
           <div className="flex items-center space-x-3">
             <SubscriptionStatusIndicator variant="badge" size="sm" />
             <ThemeToggle />
-            <div className="hidden sm:block">
-              <AnimatedSearch />
-            </div>
             
             {user ? (
               <UserMenu />

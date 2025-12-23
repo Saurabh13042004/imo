@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
 )
 from sqlalchemy.pool import NullPool
+from sqlalchemy import text
 
 from app.config import settings
 
@@ -39,9 +40,10 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         try:
             yield session
+            await session.commit()
         except Exception as e:
             await session.rollback()
-            logger.error(f"Database session error: {e}")
+            logger.error(f"Database session error: {str(e)}", exc_info=True)
             raise
         finally:
             await session.close()
@@ -54,6 +56,35 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables initialized")
+    
+    # Add missing columns if they don't exist
+    async with engine.begin() as conn:
+        try:
+            # Check and add password_hash column
+            await conn.execute(text("""
+                ALTER TABLE profiles ADD COLUMN IF NOT EXISTS password_hash VARCHAR;
+            """))
+            logger.info("password_hash column added or already exists")
+        except Exception as e:
+            logger.debug(f"password_hash column: {e}")
+        
+        try:
+            # Check and add oauth_provider column
+            await conn.execute(text("""
+                ALTER TABLE profiles ADD COLUMN IF NOT EXISTS oauth_provider VARCHAR;
+            """))
+            logger.info("oauth_provider column added or already exists")
+        except Exception as e:
+            logger.debug(f"oauth_provider column: {e}")
+        
+        try:
+            # Check and add oauth_provider_id column
+            await conn.execute(text("""
+                ALTER TABLE profiles ADD COLUMN IF NOT EXISTS oauth_provider_id VARCHAR;
+            """))
+            logger.info("oauth_provider_id column added or already exists")
+        except Exception as e:
+            logger.debug(f"oauth_provider_id column: {e}")
 
 
 async def close_db():

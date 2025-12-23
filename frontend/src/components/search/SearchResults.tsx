@@ -25,6 +25,9 @@ interface SearchResultsProps {
 	hasNextPage?: boolean;
 	hasPrevPage?: boolean;
 	onPageChange?: (page: number) => void;
+	// Access control props
+	isGuest?: boolean;
+	productDisplayLimit?: number;
 }
 
 export const SearchResults = ({
@@ -40,6 +43,8 @@ export const SearchResults = ({
 	hasNextPage = false,
 	hasPrevPage = false,
 	onPageChange,
+	isGuest = false,
+	productDisplayLimit = 50,
 }: SearchResultsProps) => {
 	// Filter out products with invalid IDs to get the actual valid count
 	const validProducts = products.filter((product) => {
