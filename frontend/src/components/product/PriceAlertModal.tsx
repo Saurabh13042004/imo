@@ -135,7 +135,7 @@ export const PriceAlertModal: React.FC<PriceAlertModalProps> = ({
             <p className="text-sm text-gray-600 mb-1">Product</p>
             <p className="font-medium text-gray-900 truncate">{product.title}</p>
             <p className="text-sm text-gray-600 mt-2">
-              Current Price: <span className="font-semibold text-gray-900">${product.price.toFixed(2)}</span>
+              Current Price: <span className="font-semibold text-gray-900">${typeof product.price === 'number' ? product.price.toFixed(2) : parseFloat(product.price).toFixed(2)}</span>
             </p>
           </div>
 

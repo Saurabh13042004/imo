@@ -6,6 +6,8 @@ import { CheckCircle, Crown, Home, Search, Loader2 } from 'lucide-react';
 import { useUserAccess } from '@/hooks/useUserAccess';
 import { useSubscriptionFlow } from '@/hooks/useSubscriptionFlow';
 import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/useAuth';
+import { API_BASE_URL } from '@/config/api';
 
 export default function PaymentSuccess() {
   const [searchParams] = useSearchParams();
@@ -13,11 +15,46 @@ export default function PaymentSuccess() {
   const queryClient = useQueryClient();
   const { refreshAccess, loading, subscription } = useUserAccess();
   const { handlePaymentSuccess } = useSubscriptionFlow();
+  const { accessToken } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(true);
   const [pollingCount, setPollingCount] = useState(0);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string>('free');
+  const [checkoutCompleted, setCheckoutCompleted] = useState(false);
 
   const sessionId = searchParams.get('session_id');
+
+  // Call manual checkout completion endpoint (for localhost where webhooks don't work)
+  useEffect(() => {
+    const completeCheckout = async () => {
+      if (sessionId && accessToken && !checkoutCompleted) {
+        try {
+          console.log('Calling manual checkout completion for session:', sessionId);
+          const response = await fetch(`${API_BASE_URL}/api/v1/payments/checkout-complete`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ session_id: sessionId })
+          });
+          
+          if (response.ok) {
+            console.log('Manual checkout completion successful');
+            setCheckoutCompleted(true);
+            // Immediately refresh access to get updated subscription
+            await refreshAccess();
+          } else {
+            const errorData = await response.json();
+            console.error('Manual checkout completion failed:', errorData);
+          }
+        } catch (error) {
+          console.error('Error calling manual checkout completion:', error);
+        }
+      }
+    };
+    
+    completeCheckout();
+  }, [sessionId, accessToken, checkoutCompleted, refreshAccess]);
 
   // Poll subscription status until webhook processes
   useEffect(() => {

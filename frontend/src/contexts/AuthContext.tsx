@@ -113,6 +113,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setRefreshToken(null);
   };
 
+  // Claim orphaned price alerts (alerts created before login with user's email)
+  const claimOrphanedAlerts = async (token: string) => {
+    try {
+      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/price-alerts/claim-orphaned`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      // Silently claim alerts, don't throw errors if it fails
+    } catch (error) {
+      console.error('Failed to claim orphaned alerts:', error);
+    }
+  };
+
   // Internal refresh token function
   const refreshAccessTokenInternal = async (
     token: string
@@ -139,6 +154,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const response = await authAPI.signUp(data);
       storeTokens(response.token.access_token, response.token.refresh_token, response.token.expires_in);
       storeUser(response.user);
+      // Claim any orphaned alerts created before signup
+      await claimOrphanedAlerts(response.token.access_token);
     } catch (error) {
       clearAuth();
       throw error;
@@ -153,6 +170,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       const response = await authAPI.signIn(data);
       storeTokens(response.token.access_token, response.token.refresh_token, response.token.expires_in);
       storeUser(response.user);
+      // Claim any orphaned alerts created before login
+      await claimOrphanedAlerts(response.token.access_token);
     } catch (error) {
       clearAuth();
       throw error;

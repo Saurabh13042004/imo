@@ -45,7 +45,7 @@ interface PriceAlertListResponse {
  */
 export const usePriceAlert = () => {
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, accessToken } = useAuth();
 
   /**
    * Create a new price alert
@@ -64,7 +64,7 @@ export const usePriceAlert = () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(user && { 'Authorization': `Bearer ${localStorage.getItem('token')}` }),
+          ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
         },
         body: JSON.stringify(payload),
       });
@@ -104,7 +104,7 @@ export const usePriceAlert = () => {
       const response = await fetch(
         `${API_BASE_URL}/api/v1/price-alerts/list?${params.toString()}`,
         {
-          headers: user ? { 'Authorization': `Bearer ${localStorage.getItem('token')}` } : {},
+          headers: accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {},
         }
       );
 
@@ -127,7 +127,7 @@ export const usePriceAlert = () => {
         const response = await fetch(
           `${API_BASE_URL}/api/v1/price-alerts/${alertId}`,
           {
-            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` },
+            headers: accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {},
           }
         );
 
@@ -157,7 +157,7 @@ export const usePriceAlert = () => {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Authorization': `Bearer ${accessToken}`,
           },
           body: JSON.stringify(data),
         }
@@ -185,7 +185,7 @@ export const usePriceAlert = () => {
         {
           method: 'DELETE',
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Authorization': `Bearer ${accessToken}`,
           },
         }
       );

@@ -1,7 +1,8 @@
 """Price alert schemas."""
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from typing import Optional
 from datetime import datetime
+from uuid import UUID
 
 
 class CreatePriceAlertRequest(BaseModel):
@@ -30,6 +31,14 @@ class PriceAlertResponse(BaseModel):
     alert_sent_at: Optional[datetime]
     created_at: datetime
     updated_at: datetime
+
+    @field_validator('id', mode='before')
+    @classmethod
+    def convert_uuid_to_str(cls, v):
+        """Convert UUID to string."""
+        if isinstance(v, UUID):
+            return str(v)
+        return v
 
     class Config:
         from_attributes = True

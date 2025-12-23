@@ -38,16 +38,48 @@ async def create_price_alert(
             )
 
         # Check if alert already exists
-        result = await db.execute(
-            select(PriceAlert).where(
-                (PriceAlert.product_id == request_data.product_id) &
-                (PriceAlert.email == email) &
-                (PriceAlert.is_active == True)
+        # For authenticated users: check by user_id OR email (catch orphaned alerts)
+        # For non-authenticated users: check by email only
+        if current_user:
+            # Build condition - check by user_id and optionally by email if it exists
+            if email:
+                result = await db.execute(
+                    select(PriceAlert).where(
+                        (PriceAlert.product_id == request_data.product_id) &
+                        (
+                            (PriceAlert.user_id == current_user.id) |
+                            (PriceAlert.email == email)
+                        ) &
+                        (PriceAlert.is_active == True)
+                    )
+                )
+            else:
+                # No email, just check by user_id
+                result = await db.execute(
+                    select(PriceAlert).where(
+                        (PriceAlert.product_id == request_data.product_id) &
+                        (PriceAlert.user_id == current_user.id) &
+                        (PriceAlert.is_active == True)
+                    )
+                )
+        else:
+            result = await db.execute(
+                select(PriceAlert).where(
+                    (PriceAlert.product_id == request_data.product_id) &
+                    (PriceAlert.email == email) &
+                    (PriceAlert.is_active == True)
+                )
             )
-        )
         existing = result.scalar_one_or_none()
 
         if existing:
+            # If user is now authenticated and alert was created without user_id, update it
+            if current_user and not existing.user_id:
+                existing.user_id = current_user.id
+                await db.commit()
+                await db.refresh(existing)
+                logger.info(f"Updated orphaned alert {existing.id} with user_id {current_user.id}")
+            
             raise HTTPException(
                 status_code=409,
                 detail="Price alert already exists for this product"
@@ -92,11 +124,22 @@ async def list_price_alerts(
     try:
         # Determine which alerts to fetch
         if current_user:
-            # For authenticated users, get their alerts
-            result = await db.execute(
-                select(PriceAlert).where(PriceAlert.user_id == current_user.id)
-                .order_by(PriceAlert.created_at.desc())
-            )
+            # For authenticated users, get their alerts by user_id OR email (includes orphaned alerts)
+            # Build query conditions
+            if current_user.email:
+                result = await db.execute(
+                    select(PriceAlert).where(
+                        (PriceAlert.user_id == current_user.id) |
+                        (PriceAlert.email == current_user.email)
+                    )
+                    .order_by(PriceAlert.created_at.desc())
+                )
+            else:
+                # If user has no email, just query by user_id
+                result = await db.execute(
+                    select(PriceAlert).where(PriceAlert.user_id == current_user.id)
+                    .order_by(PriceAlert.created_at.desc())
+                )
         elif email:
             # For non-authenticated users, fetch by email
             result = await db.execute(
@@ -224,3 +267,42 @@ async def delete_price_alert(
     except Exception as e:
         logger.error(f"Error deleting price alert: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete price alert")
+
+
+@router.post("/claim-orphaned")
+async def claim_orphaned_alerts(
+    current_user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Claim all orphaned price alerts (alerts created with user's email before login)."""
+    try:
+        # Find all alerts with user's email but no user_id
+        result = await db.execute(
+            select(PriceAlert).where(
+                (PriceAlert.email == current_user.email) &
+                (PriceAlert.user_id == None)
+            )
+        )
+        orphaned_alerts = result.scalars().all()
+
+        if not orphaned_alerts:
+            return {"message": "No orphaned alerts found", "claimed": 0}
+
+        # Update all orphaned alerts with user_id
+        claimed_count = 0
+        for alert in orphaned_alerts:
+            alert.user_id = current_user.id
+            claimed_count += 1
+
+        await db.commit()
+
+        logger.info(f"User {current_user.id} claimed {claimed_count} orphaned alerts")
+
+        return {
+            "message": f"Successfully claimed {claimed_count} orphaned alerts",
+            "claimed": claimed_count
+        }
+
+    except Exception as e:
+        logger.error(f"Error claiming orphaned alerts: {e}")
+        raise HTTPException(status_code=500, detail="Failed to claim orphaned alerts")
