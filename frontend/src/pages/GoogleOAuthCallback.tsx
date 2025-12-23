@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 export const GoogleOAuthCallback = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { loginWithGoogle } = useAuth();
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -46,19 +47,25 @@ export const GoogleOAuthCallback = () => {
 
         const data = await response.json();
         
-        // Save tokens and user info
+        // Use AuthContext to store tokens and user info properly
         if (data.token && data.user) {
-          localStorage.setItem('access_token', data.token.access_token);
-          localStorage.setItem('refresh_token', data.token.refresh_token);
-          localStorage.setItem('user', JSON.stringify(data.user));
+          try {
+            // Call loginWithGoogle to store tokens via AuthContext
+            await loginWithGoogle(data);
+            
+            toast.dismiss(loadingToast);
+            toast.success(`Welcome ${data.user.full_name || data.user.email}! 🎉`);
 
-          toast.dismiss(loadingToast);
-          toast.success(`Welcome ${data.user.full_name || data.user.email}! 🎉`);
-
-          // Redirect to home after a short delay
-          setTimeout(() => {
-            navigate('/');
-          }, 1500);
+            // Redirect to home after a short delay
+            setTimeout(() => {
+              navigate('/');
+            }, 1500);
+          } catch (authError) {
+            toast.dismiss(loadingToast);
+            toast.error('Failed to save authentication. Please try again.');
+            console.error('Auth context error:', authError);
+            navigate('/auth?tab=signin');
+          }
         }
       } catch (error: any) {
         console.error('OAuth callback error:', error);

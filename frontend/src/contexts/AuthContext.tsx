@@ -16,6 +16,7 @@ export interface AuthContextType {
   // Auth operations
   signUp: (data: SignUpRequest) => Promise<void>;
   signIn: (data: SignInRequest) => Promise<void>;
+  loginWithGoogle: (response: any) => Promise<void>;
   logout: () => Promise<void>;
   refreshAccessToken: () => Promise<boolean>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
@@ -154,6 +155,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
+  const loginWithGoogle = async (response: any) => {
+    setLoading(true);
+    try {
+      // Extract token and user from Google OAuth response
+      storeTokens(response.token.access_token, response.token.refresh_token, response.token.expires_in);
+      storeUser(response.user);
+    } catch (error) {
+      clearAuth();
+      throw error;
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const logout = async () => {
     if (accessToken) {
       try {
@@ -187,6 +202,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         refreshToken,
         signUp,
         signIn,
+        loginWithGoogle,
         logout,
         refreshAccessToken,
         changePassword,

@@ -7,7 +7,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { User, LogOut, Heart, BarChart3, Settings } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
@@ -55,6 +55,9 @@ export const UserMenu = () => {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-10 w-10 rounded-full">
           <Avatar className="h-10 w-10">
+            {user.avatar_url && (
+              <AvatarImage src={user.avatar_url} alt={user.full_name || user.email} />
+            )}
             <AvatarFallback className="bg-primary/10 text-primary font-semibold">
               {getInitials(user.full_name || '', user.email || '')}
             </AvatarFallback>

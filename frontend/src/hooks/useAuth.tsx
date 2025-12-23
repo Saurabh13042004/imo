@@ -14,6 +14,7 @@ export function useAuth() {
     signOut: context.logout,
     signIn: context.signIn,
     signUp: context.signUp,
+    loginWithGoogle: context.loginWithGoogle,
     changePassword: context.changePassword,
     refreshToken: context.refreshAccessToken,
     accessToken: context.accessToken,

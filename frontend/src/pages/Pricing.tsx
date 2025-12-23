@@ -1,12 +1,20 @@
 import { motion } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
-import { PricingSection } from "@/components/home/pricing";
+import { HighConversionPricing } from "@/components/home/pricing";
+import { MetaTags } from "@/components/seo";
 
 const Pricing = () => {
   return (
-    <div className="min-h-screen bg-background">
+    <>
+      <MetaTags 
+        title="Pricing - Flexible Plans for Every Shopper | IMO"
+        description="Choose from Free Forever, Pay-as-you-Go ($4.99), or Premium Unlimited ($10.99/mo). No hidden fees, cancel anytime."
+        keywords="IMO pricing, product research pricing, AI shopping plans, subscription pricing"
+        canonicalUrl="https://informedmarketopinions.com/pricing"
+      />
+      <div className="min-h-screen bg-background">
       {/* Hero Section */}
-      <section className="relative py-20 px-4 sm:px-6 lg:px-8">
+      {/* <section className="relative py-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-4xl mx-auto text-center">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -15,52 +23,24 @@ const Pricing = () => {
           >
             <Badge variant="secondary" className="mb-4">Pricing</Badge>
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-6">
-              Simple, Transparent
-              <span className="block text-primary">Pricing</span>
+              Simple, Transparent Pricing
             </h1>
             <p className="text-lg md:text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
-              Choose the plan that fits your research needs. Start free and upgrade as you discover more products.
+              Choose the plan that fits your needs. Start free and upgrade whenever you're ready.
             </p>
           </motion.div>
         </div>
-      </section>
+      </section> */}
 
       {/* Pricing Section */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-6xl mx-auto">
-          <PricingSection />
+      <section className="py-16 px-1 sm:px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <HighConversionPricing />
         </div>
       </section>
 
-      {/* Value Proposition */}
-      <section className="py-16 px-4 sm:px-6 lg:px-8 bg-muted/30">
-        <div className="max-w-4xl mx-auto text-center">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-          >
-            <h2 className="text-3xl md:text-4xl font-bold tracking-tight mb-6">
-              Why Choose IMO?
-            </h2>
-            <div className="grid md:grid-cols-3 gap-8 mt-12">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-primary mb-2">10x</div>
-                <div className="text-muted-foreground">Faster Research</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-primary mb-2">95%</div>
-                <div className="text-muted-foreground">Accuracy Rate</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-primary mb-2">24/7</div>
-                <div className="text-muted-foreground">AI Analysis</div>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-    </div>
+      </div>
+    </>
   );
 };
 

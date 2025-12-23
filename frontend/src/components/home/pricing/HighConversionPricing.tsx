@@ -7,7 +7,7 @@ import { useSubscriptionFlow } from '@/hooks/useSubscriptionFlow';
 import { useAuth } from '@/hooks/useAuth';
 import { useState } from 'react';
 
-export function PricingSection() {
+export function HighConversionPricing() {
   const { hasActiveSubscription } = useUserAccess();
   const { createCheckoutSession, loading } = useSubscriptionFlow();
   const { user } = useAuth();
@@ -34,13 +34,13 @@ export function PricingSection() {
         <div className="text-center mb-16">
           <Badge variant="outline" className="mb-6 px-4 py-2">
             <Sparkles className="mr-2 h-4 w-4" />
-            Simple Pricing
+            Plans & Pricing
           </Badge>
           <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-6">
-            Get Unlimited Product Rankings
+            Choose Your Plan
           </h2>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto leading-relaxed">
-            Starting at $6.99/mo • 7-day free trial • Cancel anytime • No card needed
+            Flexible pricing for every budget. 7-day free trial, cancel anytime, no card needed.
           </p>
         </div>
 
