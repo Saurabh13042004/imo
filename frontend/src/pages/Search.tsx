@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { SearchForm } from "@/components/search/SearchForm";
 import { SearchResults } from "@/components/search/SearchResults";
 import { SearchLoading } from "@/components/search/SearchLoading";
+import { LocationPermissionBanner } from "@/components/search/LocationPermissionBanner";
 import { useToast } from "@/hooks/use-toast";
 import { useParallax } from "@/hooks/useParallax";
 import { useProductSearch } from "@/hooks/useProductSearch";
@@ -21,7 +22,7 @@ import { MetaTags } from "@/components/seo";
 
 const Search = () => {
 	useParallax();
-	const { query, zipcode, country, city, language } = useSearchUrl();
+	const { query, zipcode, country, city, language, isDetectingLocation } = useSearchUrl();
 	const { user } = useAuth();
 	const navigate = useNavigate();
 	
@@ -34,6 +35,7 @@ const Search = () => {
 	const [productDisplayLimit, setProductDisplayLimit] = useState(5);
 	const [clearedProducts, setClearedProducts] = useState<any[]>([]);
 	const [lastQuery, setLastQuery] = useState<string>("");
+	const [dismissLocationBanner, setDismissLocationBanner] = useState(false);
 	const { toast } = useToast();
 
 	const {
@@ -193,6 +195,16 @@ const Search = () => {
 								onSearch={handleSearch}
 							/>
 						</div>
+
+						{/* Location Permission Banner */}
+						{!dismissLocationBanner && !isDetectingLocation && (
+							<div className="max-w-2xl mx-auto mb-6">
+								<LocationPermissionBanner
+									detectedCountry={country !== 'India' ? country : undefined}
+									onDismiss={() => setDismissLocationBanner(true)}
+								/>
+							</div>
+						)}
 
 					{/* Guest Search Banner */}
 					{!user && remainingSearches > 0 && showGuestBanner && (

@@ -7,7 +7,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 
 export function useSubscriptionFlow() {
   const { toast } = useToast();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, accessToken } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -17,7 +17,7 @@ export function useSubscriptionFlow() {
     billingCycle: 'monthly' | 'yearly' = 'monthly'
   ) => {
     // Redirect to login if not authenticated
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !accessToken) {
       toast({
         title: "Sign In Required",
         description: "Please sign in to start your subscription",
@@ -46,7 +46,7 @@ export function useSubscriptionFlow() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Authorization': `Bearer ${accessToken}`,
         },
         body: JSON.stringify(payload),
       });

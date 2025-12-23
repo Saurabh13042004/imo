@@ -63,7 +63,10 @@ async def create_checkout_session(
             'url': result['url'],
         }
     except Exception as e:
+        import traceback
         logger.error(f"Error creating checkout session: {e}")
+        logger.error(f"Full traceback: {traceback.format_exc()}")
+        logger.error(f"Exception type: {type(e).__name__}")
         raise HTTPException(status_code=400, detail=str(e))
 
 

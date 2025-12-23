@@ -15,6 +15,8 @@ interface GeolocationResult {
   zipcode: string;
   city: string;
   state: string;
+  country: string;  // Country code (US, IN, etc.)
+  countryName?: string;  // Full country name
   latitude?: number;
   longitude?: number;
 }
@@ -107,6 +109,8 @@ async function getLocationFromIPInfo(): Promise<GeolocationResult | null> {
       zipcode: zipcode,
       city: data.city || "",
       state: data.region || "",
+      country: data.country_code || data.country || "US",
+      countryName: data.country_name || "",
       latitude: data.loc ? parseFloat(data.loc.split(",")[0]) : undefined,
       longitude: data.loc ? parseFloat(data.loc.split(",")[1]) : undefined,
     };
@@ -145,6 +149,8 @@ async function getLocationFromBackendProxy(): Promise<GeolocationResult | null> 
       zipcode: data.zipcode.substring(0, 5),
       city: data.city || "",
       state: data.state || "",
+      country: data.country_code || data.country || "US",
+      countryName: data.country_name || "",
       latitude: data.latitude,
       longitude: data.longitude,
     };
@@ -186,6 +192,8 @@ async function getLocationFromBrowser(): Promise<GeolocationResult | null> {
               zipcode,
               city: "",
               state: "",
+              country: "US",  // Browser geolocation typically returns US coordinates
+              countryName: "United States",
               latitude,
               longitude,
             });

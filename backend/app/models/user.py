@@ -28,6 +28,7 @@ class Profile(Base):
     subscriptions = relationship('Subscription', back_populates='user')
     payment_transactions = relationship('PaymentTransaction', back_populates='user')
     search_unlocks = relationship('SearchUnlock', back_populates='user')
+    price_alerts = relationship('PriceAlert', back_populates='user')
 
 
 class UserRole(Base):

@@ -69,3 +69,26 @@ class SearchUnlock(Base):
     # Relationships
     user = relationship('Profile', back_populates='search_unlocks')
 
+
+class PriceAlert(Base):
+    """Price alerts for products."""
+    __tablename__ = 'price_alerts'
+
+    id = Column(PG_UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    user_id = Column(PG_UUID(as_uuid=True), ForeignKey('profiles.id'), nullable=True, index=True)  # nullable for non-authenticated users
+    product_id = Column(String, nullable=False, index=True)
+    product_name = Column(String, nullable=False)
+    product_url = Column(String, nullable=False)
+    target_price = Column(Numeric, nullable=False)
+    current_price = Column(Numeric, nullable=True)
+    currency = Column(String, default='usd')
+    email = Column(String, nullable=False, index=True)  # Email for both authenticated and non-authenticated users
+    is_active = Column(Boolean, default=True, nullable=False)
+    alert_sent = Column(Boolean, default=False, nullable=False)
+    alert_sent_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
+
+    # Relationships
+    user = relationship('Profile', back_populates='price_alerts', foreign_keys=[user_id])
+

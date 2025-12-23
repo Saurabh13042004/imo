@@ -23,6 +23,7 @@ import { ProductInfoSkeleton } from "@/components/product/ProductInfoSkeleton";
 import { ProductProsAndCons } from "@/components/product/ProductProsAndCons";
 import { ProductReviews } from "@/components/product/ProductReviews";
 import { ShortVideoReviews } from "@/components/product/ShortVideoReviews";
+import { PriceAlertModal } from "@/components/product/PriceAlertModal";
 // import { ProductReviewsSkeleton } from "@/components/product/ProductReviewsSkeleton";
 import { VideoReviews } from "@/components/product/VideoReviews";
 
@@ -44,6 +45,7 @@ const ProductDetails = () => {
   const [enrichmentLoading, setEnrichmentLoading] = useState(false);
   const [googleReviews, setGoogleReviews] = useState<any>(null);
   const [refreshReviews, setRefreshReviews] = useState(0);
+  const [isPriceAlertModalOpen, setIsPriceAlertModalOpen] = useState(false);
   const { trackProductView } = useAnalytics();
 
   // Use AI Verdict hook for all products (not Amazon-specific)
@@ -334,8 +336,18 @@ const ProductDetails = () => {
                         priceRange={enrichedData?.immersive_data?.product_results?.price_range}
                         enrichedProductDescription={enrichedData?.immersive_data?.product_results?.about_the_product?.description}
                       />
-                      <div className="flex justify-start">
+                      <div className="flex justify-start gap-3">
                         <ProductLikeButton productId={product.id} />
+                        <button
+                          onClick={() => setIsPriceAlertModalOpen(true)}
+                          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                          title="Get notified when the price drops"
+                        >
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M10.5 1.5H9.5V.5h1v1zm-8 1a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-11a1 1 0 0 0-1-1h-16zm0-1.5h16a2.5 2.5 0 0 1 2.5 2.5v11a2.5 2.5 0 0 1-2.5 2.5h-1.5v2h-1v-2h-11v2h-1v-2h-1.5a2.5 2.5 0 0 1-2.5-2.5v-11a2.5 2.5 0 0 1 2.5-2.5z" />
+                          </svg>
+                          Price Alert
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -840,6 +852,20 @@ const ProductDetails = () => {
             </motion.div>
           </div>
         </div>
+      )}
+
+      {/* Price Alert Modal */}
+      {product && (
+        <PriceAlertModal
+          isOpen={isPriceAlertModalOpen}
+          onClose={() => setIsPriceAlertModalOpen(false)}
+          product={{
+            id: product.id,
+            title: product.title,
+            product_url: product.product_url,
+            price: product.price,
+          }}
+        />
       )}
     </div>
   );

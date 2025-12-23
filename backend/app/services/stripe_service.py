@@ -14,7 +14,13 @@ from app.models.user import Profile
 logger = logging.getLogger(__name__)
 
 # Initialize Stripe
-stripe.api_key = settings.STRIPE_SECRET_KEY
+if settings.STRIPE_SECRET_KEY and settings.STRIPE_SECRET_KEY.startswith('sk_'):
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+    logger.info(f"Stripe API key loaded. Key type: {'LIVE' if 'sk_live' in settings.STRIPE_SECRET_KEY else 'TEST'}")
+else:
+    logger.warning("STRIPE_SECRET_KEY is not configured or invalid. Stripe operations will fail.")
+    logger.warning(f"STRIPE_SECRET_KEY value: {settings.STRIPE_SECRET_KEY}")
+    stripe.api_key = None
 
 
 class StripeService:
@@ -32,6 +38,12 @@ class StripeService:
     ) -> Dict[str, Any]:
         """Create a Stripe checkout session for trial or premium subscription."""
         try:
+            # Check if Stripe is configured
+            if not stripe.api_key:
+                raise Exception(
+                    "Stripe is not configured. Please set STRIPE_SECRET_KEY in environment variables. "
+                    "Get your key from https://dashboard.stripe.com/apikeys"
+                )
             # Determine pricing
             if plan_type == 'trial':
                 # Trial: Free for 7 days
@@ -74,6 +86,8 @@ class StripeService:
                 }]
 
             # Create checkout session
+            logger.info(f"Creating checkout session with stripe.api_key set: {bool(stripe.api_key)}")
+            logger.info(f"stripe.checkout exists: {hasattr(stripe, 'checkout')}")
             checkout_session = stripe.checkout.Session.create(
                 payment_method_types=['card'],
                 customer_email=email,
@@ -106,6 +120,10 @@ class StripeService:
     ) -> bool:
         """Handle successful checkout completion."""
         try:
+            # Check if Stripe is configured
+            if not stripe.api_key:
+                raise Exception("Stripe is not configured")
+
             # Retrieve the checkout session
             checkout_session = stripe.checkout.Session.retrieve(session_id)
 
@@ -283,6 +301,10 @@ class StripeService:
     ) -> bool:
         """Handle Stripe subscription.updated webhook event."""
         try:
+            if not stripe.api_key:
+                logger.error("Stripe is not configured. Cannot retrieve subscription updates.")
+                return False
+
             # Get subscription from Stripe
             stripe_sub = stripe.Subscription.retrieve(stripe_subscription_id)
 

@@ -6,47 +6,64 @@ export const useSearchUrl = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [detectedZipcode, setDetectedZipcode] = useState<string | null>(null);
+  const [detectedCountry, setDetectedCountry] = useState<string | null>(null);
+  const [detectedCity, setDetectedCity] = useState<string | null>(null);
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   
   // Auto-detect user location on mount
   useEffect(() => {
-    const initializeZipcode = async () => {
-      // First check if we have a cached zipcode from previous session
+    const initializeLocation = async () => {
+      // First check if we have a cached location from previous session
       const cached = getCachedZipcode();
-      if (cached) {
+      const cachedCountry = localStorage.getItem('userCountry');
+      const cachedCity = localStorage.getItem('userCity');
+      
+      if (cached && cachedCountry) {
         setDetectedZipcode(cached);
+        setDetectedCountry(cachedCountry);
+        if (cachedCity) setDetectedCity(cachedCity);
         return;
       }
 
       // If no cache and not from URL params, attempt to detect location
       const urlZipcode = searchParams.get('zipcode');
-      if (!urlZipcode) {
+      const urlCountry = searchParams.get('country');
+      
+      if (!urlZipcode || !urlCountry) {
         setIsDetectingLocation(true);
         try {
           const result = await getUserZipcode();
           if (result) {
             cacheZipcode(result.zipcode);
+            localStorage.setItem('userCountry', result.country);
+            if (result.city) localStorage.setItem('userCity', result.city);
+            
             setDetectedZipcode(result.zipcode);
+            setDetectedCountry(result.country);
+            if (result.city) setDetectedCity(result.city);
           } else {
-            // Fallback to default if detection fails
+            // Fallback to defaults
             setDetectedZipcode('60607');
+            setDetectedCountry('US');
           }
         } catch (error) {
           console.error('Error detecting location:', error);
           setDetectedZipcode('60607');
+          setDetectedCountry('US');
         } finally {
           setIsDetectingLocation(false);
         }
       }
     };
 
-    initializeZipcode();
+    initializeLocation();
   }, [searchParams]);
   
   // Get query and geo parameters from URL search params
+  // Use detected location with fallbacks
   const query = searchParams.get('q') || '';
-  const country = searchParams.get('country') || 'India';  // DEFAULT: India
-  const city = searchParams.get('city') || '';
+  const country = searchParams.get('country') || detectedCountry || localStorage.getItem('userCountry') || 'US';
+  const city = searchParams.get('city') || detectedCity || localStorage.getItem('userCity') || '';
   const language = searchParams.get('language') || 'en';
   const zipcode = searchParams.get('zipcode') || detectedZipcode || getCachedZipcode() || '60607';
   
@@ -135,6 +152,7 @@ export const useSearchUrl = () => {
     updateZipcode,
     updateCountry,
     updateCity,
-    updateLanguage
+    updateLanguage,
+    isDetectingLocation
   };
 };
