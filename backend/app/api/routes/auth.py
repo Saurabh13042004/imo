@@ -301,7 +301,8 @@ async def google_callback(
             subscription_tier=profile.subscription_tier,
             access_level=profile.access_level,
             roles=roles,
-            created_at=profile.created_at
+            created_at=profile.created_at,
+            oauth_provider=profile.oauth_provider
         )
         
         token_response = TokenResponse(

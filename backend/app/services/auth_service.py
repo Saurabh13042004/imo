@@ -269,8 +269,19 @@ class AuthService:
         result = await session.execute(stmt)
         profile = result.scalars().first()
         
-        # If user exists, return them with new tokens
+        # If user exists, update OAuth provider if not already set and return with new tokens
         if profile:
+            # Update oauth_provider and oauth_provider_id if not already set
+            if not profile.oauth_provider:
+                profile.oauth_provider = provider
+                profile.oauth_provider_id = provider_id
+            # Update avatar if provided
+            if avatar_url and not profile.avatar_url:
+                profile.avatar_url = avatar_url
+            
+            session.add(profile)
+            await session.flush()
+            
             roles = await AuthService.get_user_roles(session, str(profile.id))
             access_token, refresh_token = create_tokens(
                 user_id=str(profile.id),
