@@ -18,10 +18,10 @@ export const SearchForm = ({ loading, onSearch }: SearchFormProps) => {
           </div>
         </div>
         <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-6">
-          Find Products Over <span className="text-gradient">$250</span>
+          Find Products <span className="text-gradient">Over Internet</span>
         </h1>
         <p className="text-muted-foreground text-xl max-w-2xl mx-auto leading-relaxed">
-          Search across Amazon, Walmart, Google Shopping, and Home Depot for high-value products with AI-powered analysis.
+          Search across Amazon, Walmart, Google Shopping, and Home Depot with AI-powered analysis.
         </p>
       </div>
 

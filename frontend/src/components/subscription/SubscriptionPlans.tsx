@@ -57,19 +57,19 @@ export function SubscriptionPlans({
             <ul className="space-y-2">
               <li className="flex items-center space-x-2">
                 <Check className="h-4 w-4 text-green-500" />
-                <span className="text-sm">Unlimited access to {category} products</span>
+                <span className="text-sm">Trust Score (Filtered Fake Reviews)</span>
               </li>
               <li className="flex items-center space-x-2">
                 <Check className="h-4 w-4 text-green-500" />
-                <span className="text-sm">Detailed product analysis</span>
+                <span className="text-sm">Review Summaries</span>
               </li>
               <li className="flex items-center space-x-2">
                 <Check className="h-4 w-4 text-green-500" />
-                <span className="text-sm">Reviews and ratings</span>
+                <span className="text-sm">Cross Platform Reviews</span>
               </li>
               <li className="flex items-center space-x-2">
                 <Check className="h-4 w-4 text-green-500" />
-                <span className="text-sm">Lifetime access to category</span>
+                <span className="text-sm">Price Comparison (Limited)</span>
               </li>
             </ul>
             
@@ -125,19 +125,35 @@ export function SubscriptionPlans({
           <ul className="space-y-2">
             <li className="flex items-center space-x-2">
               <Check className="h-4 w-4 text-green-500" />
-              <span className="text-sm">Unlimited access to all categories</span>
+              <span className="text-sm">Trust Score (Filtered Fake Reviews)</span>
             </li>
             <li className="flex items-center space-x-2">
               <Check className="h-4 w-4 text-green-500" />
-              <span className="text-sm">View all search results (no 3 product limit)</span>
+              <span className="text-sm">Review Summaries</span>
             </li>
             <li className="flex items-center space-x-2">
               <Check className="h-4 w-4 text-green-500" />
-              <span className="text-sm">Priority AI analysis</span>
+              <span className="text-sm">Cross Platform Reviews</span>
             </li>
             <li className="flex items-center space-x-2">
               <Check className="h-4 w-4 text-green-500" />
-              <span className="text-sm">Advanced filtering and sorting</span>
+              <span className="text-sm">Price Comparison (Unlimited)</span>
+            </li>
+            <li className="flex items-center space-x-2">
+              <Check className="h-4 w-4 text-green-500" />
+              <span className="text-sm">Price Drop Alerts (Unlimited)</span>
+            </li>
+            <li className="flex items-center space-x-2">
+              <Check className="h-4 w-4 text-green-500" />
+              <span className="text-sm">AI Sentiment Analysis</span>
+            </li>
+            <li className="flex items-center space-x-2">
+              <Check className="h-4 w-4 text-green-500" />
+              <span className="text-sm">Cross Site Inventory Analysis</span>
+            </li>
+            <li className="flex items-center space-x-2">
+              <Check className="h-4 w-4 text-green-500" />
+              <span className="text-sm">AI chatbot + review interaction</span>
             </li>
             <li className="flex items-center space-x-2">
               <Check className="h-4 w-4 text-green-500" />

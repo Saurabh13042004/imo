@@ -135,14 +135,14 @@ export const HeroSection = ({ className = '' }: HeroSectionProps) => {
           </motion.div>
 
           <h1 className="text-4xl font-bold tracking-tight mb-4 text-foreground">
-            Find the Perfect{' '}
+            AI That Reads Every Review –{' '}
             <span className="bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent">
-              Product
+              Free Browser Extension
             </span>
           </h1>
 
           <p className="text-base text-muted-foreground mb-8 leading-relaxed">
-            Get AI-powered insights on products before you buy. Compare features, read smart summaries, and make confident decisions.
+            Auto-ranks real top-3 products on Amazon, Walmart & more. No fake reviews. No regrets. Install in seconds.
           </p>
         </motion.div>
 
@@ -171,21 +171,39 @@ export const HeroSection = ({ className = '' }: HeroSectionProps) => {
         </motion.form>
 
         {/* Mobile CTA */}
-        <motion.div variants={itemVariants} className="flex gap-3">
+        <motion.div variants={itemVariants} className="flex flex-col gap-3">
           <Button
             asChild
-            className="flex-1 bg-primary hover:bg-primary/90 text-white h-12 rounded-lg"
+            className="w-full bg-primary hover:bg-primary/90 text-white h-12 rounded-lg"
           >
-            <Link to="/search">Start Searching</Link>
+            <a href="#" target="_blank" rel="noopener noreferrer">
+              Add to Chrome – Free
+            </a>
           </Button>
           <Button
+            asChild
             variant="outline"
-            onClick={() => setVideoOpen(true)}
-            className="flex-1 h-12 rounded-lg"
+            className="w-full h-12 rounded-lg"
           >
-            <Play className="w-4 h-4 mr-2" />
-            Watch
+            <Link to="/search">Try Without Installing (3 Free Searches)</Link>
           </Button>
+        </motion.div>
+
+        {/* Trust Bar */}
+        <motion.div
+          variants={itemVariants}
+          className="mt-6 text-xs text-center text-muted-foreground space-y-2"
+        >
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <span>✓ Free forever (3 searches/month)</span>
+            <span className="text-muted-foreground/50">•</span>
+            <span>Works on Amazon, Walmart, Best Buy & more</span>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            <span>No card needed</span>
+            <span className="text-muted-foreground/50">•</span>
+            <span>98% accuracy from 10K+ products</span>
+          </div>
         </motion.div>
 
         {/* Mobile Stats */}
@@ -226,7 +244,7 @@ export const HeroSection = ({ className = '' }: HeroSectionProps) => {
           variants={itemVariants}
           className="text-6xl lg:text-7xl font-bold tracking-tight mb-6 text-center max-w-4xl"
         >
-          Find the Perfect{' '}
+          AI That Reads Every Review –{' '}
           <motion.span
             className="bg-gradient-to-r from-primary via-blue-500 to-purple-500 bg-clip-text text-transparent"
             animate={{
@@ -234,9 +252,8 @@ export const HeroSection = ({ className = '' }: HeroSectionProps) => {
             }}
             transition={{ duration: 6, repeat: Infinity }}
           >
-            Product
+            Free Browser Extension
           </motion.span>
-          {' '}for Any Need
         </motion.h1>
 
         {/* Subtitle */}
@@ -244,11 +261,11 @@ export const HeroSection = ({ className = '' }: HeroSectionProps) => {
           variants={itemVariants}
           className="text-xl text-muted-foreground mb-8 text-center max-w-2xl leading-relaxed"
         >
-          Get AI-powered insights on products before you buy. Compare features, read video summaries, and make confident decisions in seconds.
+          Auto-ranks real top-3 products on Amazon, Walmart & more. No fake reviews. No regrets. Install in seconds.
         </motion.p>
 
         {/* Search Bar */}
-        <motion.form
+        {/* <motion.form
           variants={itemVariants}
           onSubmit={handleSearch}
           className="w-full max-w-2xl mb-8"
@@ -294,27 +311,74 @@ export const HeroSection = ({ className = '' }: HeroSectionProps) => {
               </div>
             </motion.div>
           )}
-        </motion.form>
+        </motion.form> */}
 
         {/* CTA Buttons */}
         <motion.div
           variants={itemVariants}
-          className="flex items-center gap-4 mb-8"
+          className="flex items-center gap-4 mb-6"
         >
-          <motion.button
+          <motion.a
+            href="#"
+            target="_blank"
+            rel="noopener noreferrer"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => setVideoOpen(true)}
-            className="px-8 py-3 border border-foreground/20 rounded-lg font-medium hover:bg-foreground/5 transition-colors flex items-center gap-2 h-12"
+            className="px-8 py-4 bg-primary hover:bg-primary/90 text-white rounded-lg font-semibold text-lg transition-colors flex items-center gap-2 h-14 shadow-lg"
           >
-            <Play className="w-5 h-5" />
-            See How it Works
-          </motion.button>
+            <span>Add to Chrome – Free</span>
+          </motion.a>
+          
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <Link
+              to="/search"
+              className="px-8 py-4 border border-foreground/20 rounded-lg font-medium hover:bg-foreground/5 transition-colors flex items-center gap-2 h-14"
+            >
+              Try Without Installing (3 Free Searches)
+            </Link>
+          </motion.div>
         </motion.div>
 
-        {/* No Signup Required Badge */}
+        {/* Trust Bar */}
+        <motion.div
+          variants={itemVariants}
+          className="mb-8 text-sm text-center text-muted-foreground max-w-3xl"
+        >
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <span className="font-medium">✓ Free forever (3 searches/month)</span>
+            <span className="text-muted-foreground/50">•</span>
+            <span>Works on Amazon, Walmart, Best Buy & more</span>
+            <span className="text-muted-foreground/50">•</span>
+            <span>No card needed</span>
+            <span className="text-muted-foreground/50">•</span>
+            <span className="font-medium">98% accuracy from 10K+ products</span>
+          </div>
+        </motion.div>
 
-
+        {/* Video Embed/Link */}
+        <motion.div
+          variants={itemVariants}
+          className="w-full max-w-4xl mb-8"
+        >
+          <div className="relative rounded-xl overflow-hidden shadow-2xl border border-foreground/10">
+            <div className="aspect-video">
+              <video
+                controls
+                autoPlay
+                muted
+                loop
+                className="w-full h-full object-cover"
+                poster=""
+              >
+                <source
+                  src="https://rr2---sn-h5576nsy.googlevideo.com/videoplayback?expire=1766569628&ei=fJpLadnQL9y-4t4P_bzL8Ao&ip=115.99.220.81&id=d868393b90f7f45a&itag=22&source=contrib_service_bard_storage&begin=0&requiressl=yes&xpc=EghoqJzIP3oBAQ==&met=1766562428,&mh=jU&mm=32&mn=sn-h5576nsy&ms=su&mv=m&mvi=2&pl=22&rms=su,su&sc=yes&susc=gg&app=fife&ic=976&eaua=a_Qr8pptUps&pcm2=yes&mime=video/mp4&vprv=1&rqh=1&dur=8.057&lmt=1766561918435991&mt=1766562080&txp=0000224&sparams=expire,ei,ip,id,itag,source,requiressl,xpc,susc,app,ic,eaua,pcm2,mime,vprv,rqh,dur,lmt&sig=AJfQdSswRgIhANHQ2XCCDJlcT7LO6p2KptGLCzsS_38DrLDBE2ASXMCmAiEA10J5QbYLib7unmVk9EhmeoT7QyArFX2WkJ7FLlRoLoo=&lsparams=met,mh,mm,mn,ms,mv,mvi,pl,rms,sc&lsig=APaTxxMwRgIhALDksqGQmgZCgPlyli2xPcqS4nhCAWcB1nXPiMwlcZ0gAiEAzqLLowtX1j7YvtlNuOU1rsgFQbPEkFeNICQHACT2PAc="
+                  type="video/mp4"
+                />
+                Your browser does not support the video tag.
+              </video>
+            </div>
+          </div>
+        </motion.div>
         {/* Stats Grid */}
         <motion.div
           variants={itemVariants}
