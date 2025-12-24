@@ -6,6 +6,8 @@ import { ExternalReviews } from "@/components/product/ProductReviews/ExternalRev
 
 interface ProductReviewsProps {
   productId: string;
+  productTitle?: string;
+  productSource?: string;
   reviews?: any[];
   reviewsSummary?: any;
   refreshReviews: number;
@@ -13,7 +15,16 @@ interface ProductReviewsProps {
   isLoadingReviews?: boolean;
 }
 
-export const ProductReviews = ({ productId, reviews = [], reviewsSummary, refreshReviews, onRefreshReviews, isLoadingReviews }: ProductReviewsProps) => {
+export const ProductReviews = ({ 
+  productId, 
+  productTitle = "Product",
+  productSource = "google_shopping",
+  reviews = [], 
+  reviewsSummary, 
+  refreshReviews, 
+  onRefreshReviews, 
+  isLoadingReviews 
+}: ProductReviewsProps) => {
   console.log("ProductReviews received reviews count:", reviews.length);
   console.log("ProductReviews reviews data:", reviews);
   
@@ -50,6 +61,8 @@ export const ProductReviews = ({ productId, reviews = [], reviewsSummary, refres
             <div className="lg:col-span-5 lg:sticky lg:top-24 lg:self-start">
                 <VideoUpload
                   productId={productId}
+                  productTitle={productTitle}
+                  productSource={productSource}
                   onUploadSuccess={onRefreshReviews}
                 />
             </div>

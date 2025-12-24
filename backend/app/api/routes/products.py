@@ -2,8 +2,9 @@
 
 import logging
 from typing import Optional
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, UploadFile, File, Form
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from uuid import UUID
 import json
 import httpx
@@ -16,12 +17,17 @@ from app.schemas import (
     AmazonProductAnalysis,
     AmazonReview,
     AIVerdictRequest,
-    ShortVideoReviewsResponse
+    ShortVideoReviewsResponse,
+    UserVideoReviewCreate,
+    UserVideoReviewResponse,
+    UploadSuccessResponse
 )
 from app.services import SearchService, ReviewService, VideoService, AIService, ProductService
 from app.services.short_video_service import short_video_service
-from app.api.dependencies import get_db
+from app.services.s3_service import S3Service
+from app.api.dependencies import get_db, get_current_user
 from app.config import Settings
+from app.models import UserReview, Product
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +38,7 @@ review_service = ReviewService()
 video_service = VideoService()
 ai_service = AIService()
 product_service = ProductService()
+s3_service = S3Service()
 
 
 @router.get(
@@ -762,3 +769,279 @@ async def debug_cache():
         "source_cache_size": len(PRODUCT_BY_SOURCE),
         "source_cache_keys": list(PRODUCT_BY_SOURCE.keys())
     }
+
+
+@router.post(
+    "/reviews/upload-video",
+    response_model=UploadSuccessResponse,
+    responses={
+        400: {"model": ErrorResponse},
+        401: {"model": ErrorResponse},
+        413: {"model": ErrorResponse},
+        500: {"model": ErrorResponse}
+    }
+)
+async def upload_video_review(
+    product_id: str = Form(...),  # Accept product ID string (could be UUID or source_id)
+    product_title: str = Form(...),  # Product title required for product creation
+    product_source: str = Form(default="google_shopping"),  # Product source (default: google_shopping)
+    title: str = Form(...),
+    description: str = Form(...),
+    rating: int = Form(...),
+    video_file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Upload a video review for a product.
+    
+    - **product_id**: Google Shopping product ID or source-specific ID
+    - **product_title**: Product title (used for creating product record if needed)
+    - **product_source**: Product source like "google_shopping", "amazon", "walmart" (default: google_shopping)
+    - **title**: Review title
+    - **description**: Review description
+    - **rating**: Rating 1-5
+    - **video_file**: MP4 or MOV file (max 50MB)
+    
+    Returns: Approval pending message with guidelines link
+    """
+    try:
+        # Validate inputs
+        if not title or len(title) < 1 or len(title) > 200:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Title must be between 1 and 200 characters"
+            )
+        
+        if not description or len(description) < 10 or len(description) > 2000:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Description must be between 10 and 2000 characters"
+            )
+        
+        if not isinstance(rating, int) or rating < 1 or rating > 5:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Rating must be between 1 and 5"
+            )
+        
+        # Validate file
+        if not video_file.filename:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Video file is required"
+            )
+        
+        # Check file extension
+        allowed_extensions = {'mp4', 'mov'}
+        file_ext = video_file.filename.split('.')[-1].lower()
+        if file_ext not in allowed_extensions:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Only MP4 and MOV files are allowed. Got: {file_ext}"
+            )
+        
+        # Check file size (50MB max)
+        max_size = 50 * 1024 * 1024  # 50MB
+        file_content = await video_file.read()
+        if len(file_content) > max_size:
+            raise HTTPException(
+                status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                detail=f"File size exceeds 50MB limit. Size: {len(file_content) / 1024 / 1024:.2f}MB"
+            )
+        
+        # Find or create product by source and source_id
+        # Try to find existing product first
+        stmt = select(Product).where(
+            (Product.source == product_source) & 
+            (Product.source_id == product_id)
+        )
+        result = await db.execute(stmt)
+        product = result.scalars().first()
+        
+        # If product doesn't exist, create it
+        if not product:
+            logger.info(f"Creating new product: source={product_source}, source_id={product_id}")
+            product = Product(
+                title=product_title,
+                source=product_source,
+                source_id=product_id,
+                description=None  # Can be populated later
+            )
+            db.add(product)
+            await db.commit()
+            await db.refresh(product)
+            logger.info(f"Created product {product.id} for {product_source}:{product_id}")
+        
+        # Upload to S3
+        s3_key = s3_service.upload_video(
+            file_content=file_content,
+            file_name=video_file.filename,
+            user_id=str(current_user.id),
+            product_id=str(product.id)
+        )
+        
+        if not s3_key:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to upload video to S3"
+            )
+        
+        # Create review record in database
+        user_review = UserReview(
+            user_id=current_user.id,
+            product_id=product.id,
+            title=title,
+            description=description,
+            rating=rating,
+            status='pending',  # Set to pending for moderation
+            s3_key=s3_key,
+            video_url=None  # Will be generated when approved
+        )
+        
+        db.add(user_review)
+        await db.commit()
+        await db.refresh(user_review)
+        
+        logger.info(
+            f"User {current_user.id} uploaded video review for product {product.id}. "
+            f"Review ID: {user_review.id}, S3 Key: {s3_key}"
+        )
+        
+        # Return success response with approval message
+        return UploadSuccessResponse(
+            success=True,
+            message="Boom! Your review video just landed in our inbox. Our team's on it—giving it a quick vibe check against our guidelines. Approval usually takes up to 1 business day, and we'll ping you the second it's live. In the meantime, sneak a peek at our video upload guidelines so your next one sails through.",
+            review_id=user_review.id,
+            status="pending",
+            guidelines_url="/review-guidelines"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error uploading video review: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload video review: {str(e)}"
+        )
+
+
+@router.get(
+    "/reviews/user-reviews/{product_id}",
+    response_model=list[UserVideoReviewResponse],
+    responses={404: {"model": ErrorResponse}, 500: {"model": ErrorResponse}}
+)
+async def get_user_reviews_for_product(
+    product_id: UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get approved user video reviews for a product.
+    
+    - **product_id**: UUID of the product
+    
+    Returns: List of approved user video reviews
+    """
+    try:
+        from sqlalchemy import select
+        
+        # Fetch only approved reviews
+        query = select(UserReview).where(
+            (UserReview.product_id == product_id) &
+            (UserReview.status == 'approved')
+        ).order_by(UserReview.created_at.desc())
+        
+        result = await db.execute(query)
+        reviews = result.scalars().all()
+        
+        # Generate signed URLs for approved videos
+        review_responses = []
+        for review in reviews:
+            video_url = None
+            if review.s3_key:
+                video_url = s3_service.get_signed_url(review.s3_key, expiration=7200)  # 2 hours
+            
+            review_responses.append(
+                UserVideoReviewResponse(
+                    id=review.id,
+                    user_id=review.user_id,
+                    product_id=review.product_id,
+                    title=review.title,
+                    description=review.description,
+                    rating=review.rating,
+                    status=review.status,
+                    video_url=video_url,
+                    s3_key=review.s3_key,
+                    created_at=review.created_at,
+                    updated_at=review.updated_at
+                )
+            )
+        
+        return review_responses
+        
+    except Exception as e:
+        logger.error(f"Error fetching user reviews for product {product_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch user reviews: {str(e)}"
+        )
+
+
+@router.get(
+    "/reviews/my-submissions",
+    response_model=list[UserVideoReviewResponse],
+    responses={401: {"model": ErrorResponse}, 500: {"model": ErrorResponse}}
+)
+async def get_my_submitted_reviews(
+    db: AsyncSession = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    """
+    Get all video reviews submitted by the current user (all statuses).
+    
+    Returns: List of user's video reviews with status info
+    """
+    try:
+        from sqlalchemy import select
+        
+        # Fetch all reviews by current user
+        query = select(UserReview).where(
+            UserReview.user_id == current_user.id
+        ).order_by(UserReview.created_at.desc())
+        
+        result = await db.execute(query)
+        reviews = result.scalars().all()
+        
+        # Generate signed URLs for videos (only approved ones should be accessible)
+        review_responses = []
+        for review in reviews:
+            video_url = None
+            if review.s3_key and review.status == 'approved':
+                video_url = s3_service.get_signed_url(review.s3_key, expiration=7200)  # 2 hours
+            
+            review_responses.append(
+                UserVideoReviewResponse(
+                    id=review.id,
+                    user_id=review.user_id,
+                    product_id=review.product_id,
+                    title=review.title,
+                    description=review.description,
+                    rating=review.rating,
+                    status=review.status,
+                    video_url=video_url,
+                    s3_key=review.s3_key,
+                    created_at=review.created_at,
+                    updated_at=review.updated_at
+                )
+            )
+        
+        logger.info(f"User {current_user.id} retrieved {len(review_responses)} submitted reviews")
+        return review_responses
+        
+    except Exception as e:
+        logger.error(f"Error fetching submitted reviews for user {current_user.id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch your reviews: {str(e)}"
+        )

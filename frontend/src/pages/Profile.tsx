@@ -349,10 +349,11 @@ export default function Profile() {
 
         {/* Tabs */}
         <Tabs defaultValue="personal" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="personal">Personal</TabsTrigger>
             <TabsTrigger value="photo">Photo</TabsTrigger>
             <TabsTrigger value="security">Security</TabsTrigger>
+            <TabsTrigger value="reviews">My Reviews</TabsTrigger>
             <TabsTrigger value="oauth">Connected Apps</TabsTrigger>
           </TabsList>
 
@@ -613,8 +614,214 @@ export default function Profile() {
               </CardContent>
             </Card>
           </TabsContent>
+
+          {/* My Reviews Tab */}
+          <TabsContent value="reviews" className="space-y-4">
+            <MyReviewsTab />
+          </TabsContent>
         </Tabs>
       </div>
     </div>
+  );
+}
+
+// My Reviews Tab Component
+function MyReviewsTab() {
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const { accessToken } = useAuth();
+
+  useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/v1/reviews/my-submissions', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch reviews');
+        }
+
+        const data = await response.json();
+        setReviews(data);
+      } catch (error) {
+        console.error('Error fetching reviews:', error);
+        toast.error('Failed to load your reviews');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (accessToken) {
+      fetchReviews();
+    }
+  }, [accessToken, refreshKey]);
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return 'bg-green-100 dark:bg-green-950 text-green-800 dark:text-green-300';
+      case 'pending':
+        return 'bg-yellow-100 dark:bg-yellow-950 text-yellow-800 dark:text-yellow-300';
+      case 'rejected':
+        return 'bg-red-100 dark:bg-red-950 text-red-800 dark:text-red-300';
+      default:
+        return 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return '✅';
+      case 'pending':
+        return '⏳';
+      case 'rejected':
+        return '❌';
+      default:
+        return '📝';
+    }
+  };
+
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="pt-6 flex items-center justify-center py-12">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+            <p className="text-muted-foreground">Loading your reviews...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (reviews.length === 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>My Video Reviews</CardTitle>
+          <CardDescription>Your submitted video reviews and their approval status</CardDescription>
+        </CardHeader>
+        <CardContent className="text-center py-12">
+          <p className="text-muted-foreground mb-4">You haven't submitted any video reviews yet.</p>
+          <p className="text-sm text-muted-foreground">Start by uploading a video review on any product page!</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex justify-between items-start">
+          <div>
+            <CardTitle>My Video Reviews</CardTitle>
+            <CardDescription>Your submitted video reviews and their approval status</CardDescription>
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => setRefreshKey(k => k + 1)}
+          >
+            🔄 Refresh
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {reviews.map((review) => (
+            <div 
+              key={review.id}
+              className="border rounded-lg p-4 hover:bg-accent/50 transition-colors"
+            >
+              {/* Header with status */}
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex-1">
+                  <h3 className="font-semibold text-lg flex items-center gap-2">
+                    {review.title}
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(review.status)}`}>
+                      {getStatusIcon(review.status)} {review.status.charAt(0).toUpperCase() + review.status.slice(1)}
+                    </span>
+                  </h3>
+                </div>
+                <div className="flex items-center gap-1 ml-4">
+                  <span className="text-lg">{'⭐'.repeat(review.rating)}</span>
+                  <span className="text-sm text-muted-foreground">({review.rating}/5)</span>
+                </div>
+              </div>
+
+              {/* Description */}
+              <p className="text-sm text-foreground/80 mb-3 line-clamp-2">
+                {review.description}
+              </p>
+
+              {/* Meta info */}
+              <div className="flex gap-4 text-xs text-muted-foreground mb-3 flex-wrap">
+                <div>
+                  📅 Submitted: {new Date(review.created_at).toLocaleDateString()}
+                </div>
+                {review.updated_at && review.updated_at !== review.created_at && (
+                  <div>
+                    🔄 Updated: {new Date(review.updated_at).toLocaleDateString()}
+                  </div>
+                )}
+              </div>
+
+              {/* Video preview / status message */}
+              {review.status === 'approved' && review.video_url ? (
+                <div className="rounded-lg bg-black/10 dark:bg-white/10 p-2 mb-3">
+                  <video 
+                    controls 
+                    className="w-full rounded-lg max-h-64"
+                    src={review.video_url}
+                  />
+                </div>
+              ) : (
+                <div className="rounded-lg bg-muted p-4 mb-3 text-center">
+                  <div className="text-sm text-muted-foreground">
+                    {review.status === 'pending' && (
+                      <>
+                        <p className="font-medium mb-1">⏳ Review Pending Approval</p>
+                        <p className="text-xs">We're reviewing your video against our guidelines. This usually takes up to 1 business day.</p>
+                      </>
+                    )}
+                    {review.status === 'rejected' && (
+                      <>
+                        <p className="font-medium mb-1">❌ Review Rejected</p>
+                        <p className="text-xs">Your video didn't meet our guidelines. Please check our guidelines and submit a new one.</p>
+                      </>
+                    )}
+                    {review.status === 'approved' && !review.video_url && (
+                      <>
+                        <p className="font-medium mb-1">✅ Approved</p>
+                        <p className="text-xs">Your review has been approved!</p>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Action buttons */}
+              {review.status === 'rejected' && (
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" className="w-full">
+                    📝 Review Guidelines
+                  </Button>
+                  <Button variant="default" size="sm" className="w-full">
+                    🎬 Submit Again
+                  </Button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }

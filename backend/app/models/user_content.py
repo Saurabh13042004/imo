@@ -19,7 +19,10 @@ class UserReview(Base):
     title = Column(String, nullable=False)
     description = Column(String)
     rating = Column(Integer, nullable=False)
+    status = Column(String, default='pending', nullable=False)  # 'pending', 'approved', 'rejected'
+    s3_key = Column(String, nullable=True)  # S3 storage key for video
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
 
     # Relationships
     product = relationship('Product', back_populates='user_reviews')

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Upload, Star, X, Trash2, Video } from "lucide-react";
+import { Upload, Star, X, Trash2, Video, AlertCircle, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -7,15 +7,23 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { VideoPlayer } from "@/components/ui/video-player";
-import { useToast } from "@/hooks/use-toast";
+import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
+import axios from "axios";
 
 interface VideoUploadProps {
   productId: string;
+  productTitle: string;
+  productSource?: string;
   onUploadSuccess: () => void;
 }
 
-export const VideoUpload = ({ productId, onUploadSuccess }: VideoUploadProps) => {
+export const VideoUpload = ({ 
+  productId, 
+  productTitle,
+  productSource = "google_shopping",
+  onUploadSuccess 
+}: VideoUploadProps) => {
   const [uploading, setUploading] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -24,7 +32,8 @@ export const VideoUpload = ({ productId, onUploadSuccess }: VideoUploadProps) =>
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [videoPreview, setVideoPreview] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
-  const { toast } = useToast();
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
   const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (uploading) return; // Prevent changes during upload
@@ -84,39 +93,73 @@ export const VideoUpload = ({ productId, onUploadSuccess }: VideoUploadProps) =>
     
     if (errors.length > 0) {
       setValidationErrors(errors);
-      toast({
-        title: "Please complete all required fields",
-        description: "Check the highlighted fields below.",
-        variant: "destructive"
-      });
+      toast.error("Please complete all required fields");
       return;
     }
     
     setValidationErrors([]);
-
     setUploading(true);
+    setUploadSuccess(false);
 
     try {
-      // Demo mode: simulate upload success
-      toast({
-        title: "Review uploaded",
-        description: "Your video review has been submitted successfully!"
-      });
+      // Create FormData for multipart upload
+      const formData = new FormData();
+      formData.append('product_id', productId);
+      formData.append('product_title', productTitle);
+      formData.append('product_source', productSource);
+      formData.append('title', title);
+      formData.append('description', description);
+      formData.append('rating', rating.toString());
+      formData.append('video_file', videoFile);
 
-      // Reset form
-      setTitle("");
-      setDescription("");
-      setRating(0);
-      handleRemoveVideo();
-      
-      onUploadSuccess();
-    } catch (error) {
+      // Get auth token from sessionStorage
+      const authData = JSON.parse(sessionStorage.getItem('auth_tokens') || '{}');
+      const accessToken = authData.accessToken;
+
+      if (!accessToken) {
+        toast.error("Authentication required. Please login first.");
+        return;
+      }
+
+      // Upload to backend with auth token
+      const response = await axios.post(
+        '/api/v1/reviews/upload-video',
+        formData,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+            'Authorization': `Bearer ${accessToken}`
+          }
+        }
+      );
+
+      if (response.data.success) {
+        setUploadSuccess(true);
+        setSuccessMessage(response.data.message);
+        
+        toast.success("🎉 Review uploaded successfully! Your video review has been submitted for approval.");
+
+        // Reset form after 3 seconds
+        setTimeout(() => {
+          setTitle("");
+          setDescription("");
+          setRating(0);
+          handleRemoveVideo();
+          setUploadSuccess(false);
+          setSuccessMessage("");
+          onUploadSuccess();
+        }, 3000);
+      }
+    } catch (error: any) {
       console.error('Upload error:', error);
-      toast({
-        title: "Upload failed",
-        description: "There was an error uploading your review. Please try again.",
-        variant: "destructive"
-      });
+      
+      const errorMessage = error.response?.data?.detail || 
+                          error.response?.data?.error || 
+                          'Failed to upload video. Please try again.';
+      
+      toast.error(errorMessage);
+
+      setValidationErrors([errorMessage]);
     } finally {
       setUploading(false);
     }
@@ -131,8 +174,25 @@ export const VideoUpload = ({ productId, onUploadSuccess }: VideoUploadProps) =>
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {validationErrors.length > 0 && (
+        {/* Success Message */}
+        {uploadSuccess && (
+          <Alert className="mb-6 border-green-300/50 bg-green-50 dark:bg-green-950/30">
+            <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
+            <AlertDescription className="ml-2 text-green-800 dark:text-green-200">
+              <div className="space-y-3">
+                <p className="font-semibold">{successMessage}</p>
+                <div className="space-y-2 text-sm">
+                  <p>💡 In the meantime, check out our <a href="/review-guidelines" className="underline font-medium hover:text-green-700 dark:hover:text-green-300">video upload guidelines</a> so your next one sails through!</p>
+                  <p className="text-xs text-green-700 dark:text-green-300">Thank you for sharing your real talk—can't wait to show it to the world!</p>
+                </div>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {validationErrors.length > 0 && !uploadSuccess && (
           <Alert variant="destructive" className="mb-6 border-destructive/30 bg-destructive/10">
+            <AlertCircle className="h-5 w-5" />
             <AlertDescription>
               <div className="space-y-3">
                 <p className="font-semibold text-destructive text-sm">Please complete the following:</p>
@@ -149,6 +209,7 @@ export const VideoUpload = ({ productId, onUploadSuccess }: VideoUploadProps) =>
           </Alert>
         )}
 
+        {!uploadSuccess && (
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <Label htmlFor="video-upload" className="text-base font-medium">
@@ -334,6 +395,7 @@ export const VideoUpload = ({ productId, onUploadSuccess }: VideoUploadProps) =>
             )}
           </Button>
         </form>
+        )}
       </CardContent>
     </Card>
   );

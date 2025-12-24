@@ -757,6 +757,8 @@ const ProductDetails = () => {
                   {/* User Reviews Section - Combined All Sources */}
                   <ProductReviews 
                     productId={productId || ""}
+                    productTitle={product?.title || "Product"}
+                    productSource={product?.source || "google_shopping"}
                     reviews={[
                       // 1. Amazon reviews from unified response (canonical source)
                       ...(enrichedData?.amazon_reviews?.map((review: any) => ({

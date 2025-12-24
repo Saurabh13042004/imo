@@ -16,6 +16,11 @@ beautifulsoup4==4.12.2
 # Payment processing
 stripe==14.1.0
 
+# AWS SDK for S3 uploads
+boto3
+s3transfer
+botocore 
+
 # Authentication dependencies
 PyJWT==2.8.0
 passlib[bcrypt]==1.7.4

@@ -417,6 +417,52 @@ class ShortVideoReviewsResponse(BaseModel):
     videos: List[ShortVideoReviewResponse] = []
 
 
+class UserVideoReviewCreate(BaseModel):
+    """User video review creation schema."""
+
+    product_id: UUID = Field(..., description="Product ID")
+    title: str = Field(..., description="Review title", min_length=1, max_length=200)
+    description: str = Field(..., description="Review description", min_length=10, max_length=2000)
+    rating: int = Field(..., description="Rating 1-5", ge=1, le=5)
+
+
+class UserVideoReviewResponse(BaseModel):
+    """User video review response schema."""
+
+    id: UUID
+    user_id: UUID
+    product_id: UUID
+    title: str
+    description: str
+    rating: int
+    status: str  # 'pending', 'approved', 'rejected'
+    video_url: Optional[str] = None
+    s3_key: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class UserVideoReviewListResponse(BaseModel):
+    """List of user video reviews."""
+
+    success: bool = True
+    reviews: List[UserVideoReviewResponse] = []
+    total: int = 0
+
+
+class UploadSuccessResponse(BaseModel):
+    """Video upload success response."""
+
+    success: bool = True
+    message: str = "Boom! Your review video just landed in our inbox. Our team's on it—giving it a quick vibe check against our guidelines. Approval usually takes up to 1 business day, and we'll ping you the second it's live."
+    review_id: UUID
+    status: str = "pending"
+    guidelines_url: str = "/review-guidelines"
+
+
 class ErrorResponse(BaseModel):
     """Error response schema."""
 

@@ -5,10 +5,17 @@ import { VideoUpload } from "@/components/reviews/VideoUpload";
 
 interface ProductReviewsSkeletonProps {
   productId: string;
+  productTitle?: string;
+  productSource?: string;
   onRefreshReviews: () => void;
 }
 
-export const ProductReviewsSkeleton = ({ productId, onRefreshReviews }: ProductReviewsSkeletonProps) => {
+export const ProductReviewsSkeleton = ({ 
+  productId, 
+  productTitle = "Product",
+  productSource = "google_shopping",
+  onRefreshReviews 
+}: ProductReviewsSkeletonProps) => {
   return (
     <div className="space-y-8 pt-16">
       <h2 className="text-2xl font-semibold flex items-center">
@@ -50,7 +57,9 @@ export const ProductReviewsSkeleton = ({ productId, onRefreshReviews }: ProductR
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Video Upload Form - Static UI, always show actual component */}
             <VideoUpload 
-              productId={productId} 
+              productId={productId}
+              productTitle={productTitle}
+              productSource={productSource}
               onUploadSuccess={onRefreshReviews}
             />
             <div className="lg:col-span-1">

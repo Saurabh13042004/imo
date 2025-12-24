@@ -296,6 +296,15 @@ export function getApiUrl(): string {
   return API_URL;
 }
 
+/**
+ * Get user's submitted video reviews
+ */
+export async function getUserSubmittedReviews() {
+  return apiCall('/api/v1/reviews/my-submissions', {
+    method: 'GET',
+  });
+}
+
 export default {
   searchProducts,
   getTrendingProducts,
@@ -309,4 +318,5 @@ export default {
   getUserLikedProducts,
   checkHealth,
   getApiUrl,
+  getUserSubmittedReviews,
 };
