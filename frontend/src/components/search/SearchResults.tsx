@@ -129,7 +129,7 @@ export const SearchResults = ({
 							{isGuest && totalCount && totalCount > validProducts.length ? (
 								<>Showing {validProducts.length} of {totalCount} products (sign in to see all)</>
 							) : (
-								<>Showing products over $250 with AI-powered analysis</>
+								<>Discover products from across the internet with AI-powered analysis</>
 							)}
 						</p>
 					</div>

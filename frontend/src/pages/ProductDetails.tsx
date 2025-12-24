@@ -866,6 +866,7 @@ const ProductDetails = () => {
             product_url: product.product_url,
             price: product.price,
           }}
+          country={country}
         />
       )}
 

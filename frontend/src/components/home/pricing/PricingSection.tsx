@@ -97,19 +97,31 @@ export function PricingSection() {
               <ul className="space-y-4">
                 <li className="flex items-start gap-3">
                   <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>10 products per search</span>
+                  <span>Trust Score (Filtered Fake Reviews)</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>Basic rankings</span>
+                  <span>Review Summaries</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>Limited AI analysis</span>
+                  <span>Cross Platform Text, Short Form, Long Form Reviews</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>Video product previews</span>
+                  <span>Price Comparison (Limited)</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="text-muted-foreground">❌ Price Drop Alerts</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="text-muted-foreground">❌ AI Powered Sentiment Analysis</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="text-muted-foreground">❌ Cross Site Inventory Analysis</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <span className="text-muted-foreground">❌ AI chatbot + review interaction</span>
                 </li>
               </ul>
               
@@ -180,19 +192,35 @@ export function PricingSection() {
                 )}
                 <li className="flex items-start gap-3">
                   <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>Unlimited access to all categories</span>
+                  <span>Trust Score (Filtered Fake Reviews)</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>View unlimited products per search</span>
+                  <span>Review Summaries</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>Priority AI analysis & insights</span>
+                  <span>Cross Platform Text, Short Form, Long Form Reviews</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                  <span>Advanced filtering & sorting</span>
+                  <span>Price Comparison (Unlimited)</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                  <span>Price Drop Alerts (Unlimited)</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                  <span>AI Powered Sentiment Analysis</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                  <span>Cross Site Inventory Analysis</span>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
+                  <span>AI chatbot + review interaction</span>
                 </li>
                 <li className="flex items-start gap-3">
                   <Check className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />

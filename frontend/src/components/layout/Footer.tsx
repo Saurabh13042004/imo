@@ -104,6 +104,11 @@ export const Footer = () => {
                   Refund Policy
                 </Link>
               </li>
+              <li>
+                <Link to="/review-guidelines" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                  Review Guidelines
+                </Link>
+              </li>
             </ul>
           </div>
           

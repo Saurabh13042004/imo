@@ -53,10 +53,25 @@ async function apiCall<T>(
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(
-        errorText || `API Error: ${response.status} ${response.statusText}`
-      );
+      let errorMessage = `API Error: ${response.status} ${response.statusText}`;
+      
+      try {
+        const errorData = await response.json();
+        // Extract detail message from FastAPI error response
+        if (errorData.detail) {
+          errorMessage = typeof errorData.detail === 'string' 
+            ? errorData.detail 
+            : JSON.stringify(errorData.detail);
+        }
+      } catch {
+        // If JSON parsing fails, use text
+        const errorText = await response.text();
+        if (errorText) {
+          errorMessage = errorText;
+        }
+      }
+      
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();

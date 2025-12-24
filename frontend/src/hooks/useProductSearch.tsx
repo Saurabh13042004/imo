@@ -161,11 +161,14 @@ export function useProductSearch({
 				setTotalPages(calculatedTotalPages);
 			} catch (err) {
 				console.error("Search error:", err);
-				setError(err instanceof Error ? err.message : "Failed to fetch products");
+				const errorMessage = err instanceof Error ? err.message : "Failed to fetch products";
+				console.log("Setting error state to:", errorMessage);
+				setError(errorMessage);
 				setProducts([]);
 				setTotalCount(0);
 				setTotalPages(0);
 			} finally {
+				console.log("Setting isLoading to false");
 				setIsLoading(false);
 			}
 		};

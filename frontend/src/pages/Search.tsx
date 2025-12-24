@@ -8,6 +8,7 @@ import { useParallax } from "@/hooks/useParallax";
 import { useProductSearch } from "@/hooks/useProductSearch";
 import { useSearchUrl } from "@/hooks/useSearchUrl";
 import { useAuth } from "@/hooks/useAuth";
+import toast from "react-hot-toast";
 import {
 	getRemainingGuestSearches,
 	incrementGuestSearchCount,
@@ -19,6 +20,8 @@ import { Button } from "@/components/ui/button";
 import { X, LogIn } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { MetaTags } from "@/components/seo";
+import { number } from "framer-motion";
+import { set } from "date-fns";
 
 const Search = () => {
 	useParallax();
@@ -30,6 +33,7 @@ const Search = () => {
 	const [page, setPage] = useState(1);
 	const [isLoading, setIsLoading] = useState(false);
 	const [remainingSearches, setRemainingSearches] = useState(getGuestFreeSearchCount());
+	const [dailyLimitReached, setDailyLimitReached] = useState(false);
 	const [showGuestBanner, setShowGuestBanner] = useState(!user);
 	const [searchesExhausted, setSearchesExhausted] = useState(false);
 	const [productDisplayLimit, setProductDisplayLimit] = useState(5);
@@ -41,7 +45,7 @@ const Search = () => {
 		return localStorage.getItem('location-banner-dismissed') === 'true' || 
 		       localStorage.getItem('location-permission-granted') === 'true';
 	});
-	const { toast } = useToast();
+
 
 	const {
 		products,
@@ -49,6 +53,8 @@ const Search = () => {
 		totalPages,
 		hasNextPage,
 		hasPrevPage,
+		error,
+		isLoading: searchIsLoading,
 	} = useProductSearch({
 		query: query,
 		zipcode: zipcode,
@@ -151,7 +157,7 @@ const Search = () => {
 
 	// Clear loading and increment guest count when results arrive
 	useEffect(() => {
-		if (isLoading && products.length > 0) {
+		if (!searchIsLoading && products.length > 0) {
 			// Increment guest search count only once per search after successful results
 			if (!user && hasSubmitted && !searchCounted) {
 				incrementGuestSearchCount();
@@ -164,7 +170,41 @@ const Search = () => {
 			}, 300);
 			return () => clearTimeout(timer);
 		}
-	}, [products, isLoading, user, hasSubmitted, searchCounted]);
+	}, [products, searchIsLoading, user, hasSubmitted, searchCounted]);
+
+	// Handle errors separately - SIMPLIFIED
+	useEffect(() => {
+		if (error) {
+			console.log("🚨 Error detected:", error);
+			setIsLoading(false);
+			
+			// Check if it's a daily limit error
+			const isLimitError = error.includes("Daily search limit reached") || 
+			                    error.includes("limit reached") ||
+			                    error.includes("403");
+			
+			if (isLimitError) {
+				console.log("🚫 Daily limit reached - setting exhausted state");
+				setSearchesExhausted(true);
+				setHasSubmitted(true); // Ensure banner shows
+				toast.error("🚫 Daily search limit reached. Sign in for unlimited searches.");
+				setDailyLimitReached(true);
+
+
+			} else {
+				console.log("❌ Generic error");
+				toast("❌ " + error, {
+					duration: 5000,
+					position: 'top-center',
+					style: {
+						background: '#dc2626',
+						color: 'white',
+						padding: '12px 20px',
+					},
+				});
+			}
+		}
+	}, [error]); // Only depend on error
 
 	// Load guest search count on mount and set product display limit
 	useEffect(() => {
@@ -246,7 +286,49 @@ const Search = () => {
 								</Button>
 							</div>
 						</div>
-					)}						{/* Searches exhausted message */}
+					)}	
+					
+					
+					{/*Daily Limit Reached Banner */}
+
+					{dailyLimitReached && (
+						<div className="mb-6 mx-auto max-w-2xl bg-gradient-to-r from-red-100 to-red-200 border border-red-300 rounded-2xl p-4 flex items-center justify-between gap-4">
+							<div className="flex items-center gap-3 flex-1">
+								<div className="bg-red-200 rounded-full px-4 py-1.5 inline-flex items-center justify-center whitespace-nowrap">
+									<span className="text-sm font-semibold text-red-800">
+										Daily Limit Reached
+									</span>
+								</div>
+								<p className="text-sm text-foreground">
+									You've reached yoour free daily search limit. Upgrade to premium for unlimited searches and more results per search!
+								</p>
+							</div>
+							<div className="flex items-center gap-2 flex-shrink-0">
+								<Button
+									variant="default"
+									size="sm"
+									onClick={() => navigate('/pricing')}
+									className="whitespace-nowrap"
+								>
+									View Pricing
+								</Button>
+
+								<Button
+									variant="ghost"
+									size="sm"
+									onClick={() => setDailyLimitReached(false)}
+									className="h-8 w-8 p-0"
+								>
+									<X className="h-4 w-4" />
+								</Button>
+							</div>
+						</div>
+					)}
+					
+
+					
+					
+										{/* Searches exhausted message */}
 						{searchesExhausted && !user && (
 							<div className="mb-12 bg-gradient-to-br from-primary/10 to-secondary/10 border-2 border-primary/30 rounded-2xl p-12 text-center space-y-6">
 								<div className="flex justify-center">

@@ -28,6 +28,7 @@ import PaymentCanceled from '@/pages/PaymentCanceled'
 import Checkout from '@/pages/Checkout'
 import { GoogleOAuthCallback } from '@/pages/GoogleOAuthCallback'
 import SubscriptionManager from '@/pages/SubscriptionManager'
+import ReviewGuidelines from '@/pages/ReviewGuidelines'
 import { Navigate } from 'react-router-dom'
 
 // Layout
@@ -68,6 +69,7 @@ function AppRoutes() {
       <Route path="/payment-success" element={<PaymentSuccess />} />
       <Route path="/payment-canceled" element={<PaymentCanceled />} />
       <Route path="/subscription-manager" element={<SubscriptionManager />} />
+      <Route path="/review-guidelines" element={<ReviewGuidelines />} />
       {/* Dashboard redirect for backward compatibility */}
       <Route path="/dashboard" element={<Navigate to="/payment-success" replace />} />
       <Route path="*" element={<NotFound />} />

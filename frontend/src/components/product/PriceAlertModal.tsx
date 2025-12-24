@@ -3,6 +3,7 @@ import { X, Bell } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { usePriceAlert } from '../../hooks/usePriceAlert';
 import { useAuth } from '../../hooks/useAuth';
+import { formatPriceWithCurrency, getCurrencySymbol } from '../../utils/currencyUtils';
 
 interface PriceAlertModalProps {
   isOpen: boolean;
@@ -13,15 +14,18 @@ interface PriceAlertModalProps {
     product_url: string;
     price: number;
   };
+  country?: string;
 }
 
 export const PriceAlertModal: React.FC<PriceAlertModalProps> = ({
   isOpen,
   onClose,
   product,
+  country = 'India',
 }) => {
   const { user } = useAuth();
   const { createAlert, hasExistingAlert } = usePriceAlert();
+  const currencySymbol = getCurrencySymbol(country);
 
   const [targetPrice, setTargetPrice] = useState<string>('');
   const [email, setEmail] = useState<string>(user?.email || '');
@@ -135,7 +139,7 @@ export const PriceAlertModal: React.FC<PriceAlertModalProps> = ({
             <p className="text-sm text-gray-600 mb-1">Product</p>
             <p className="font-medium text-gray-900 truncate">{product.title}</p>
             <p className="text-sm text-gray-600 mt-2">
-              Current Price: <span className="font-semibold text-gray-900">${typeof product.price === 'number' ? product.price.toFixed(2) : parseFloat(product.price).toFixed(2)}</span>
+              Current Price: <span className="font-semibold text-gray-900">{formatPriceWithCurrency(product.price, country)}</span>
             </p>
           </div>
 
@@ -154,7 +158,7 @@ export const PriceAlertModal: React.FC<PriceAlertModalProps> = ({
               Target Price *
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">{currencySymbol}</span>
               <input
                 id="targetPrice"
                 type="number"
