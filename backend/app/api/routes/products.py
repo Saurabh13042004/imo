@@ -8,6 +8,7 @@ from sqlalchemy import select
 from uuid import UUID
 import json
 import httpx
+import copy
 
 from app.schemas import (
     ProductResponse,
@@ -28,6 +29,7 @@ from app.services.s3_service import S3Service
 from app.api.dependencies import get_db, get_current_user
 from app.config import Settings
 from app.models import UserReview, Product
+from app.utils.helpers import parse_relative_date
 
 logger = logging.getLogger(__name__)
 
@@ -39,6 +41,68 @@ video_service = VideoService()
 ai_service = AIService()
 product_service = ProductService()
 s3_service = S3Service()
+
+
+def normalize_review_dates(data: dict) -> dict:
+    """
+    Recursively normalize all review dates in the API response.
+    Converts relative date formats to ISO format.
+    
+    Args:
+        data: Dictionary potentially containing reviews with date fields
+        
+    Returns:
+        Dictionary with normalized date fields
+    """
+    if not isinstance(data, dict):
+        return data
+    
+    # Deep copy to avoid modifying the original
+    normalized = copy.deepcopy(data)
+    
+    # Process user_reviews array if it exists
+    if "user_reviews" in normalized and isinstance(normalized["user_reviews"], list):
+        normalized["user_reviews"] = [
+            {
+                **review,
+                "date": parse_relative_date(review.get("date")) or review.get("date")
+            }
+            for review in normalized["user_reviews"]
+        ]
+    
+    # Process reviews array if it exists (some SerpAPI endpoints)
+    if "reviews" in normalized and isinstance(normalized["reviews"], list):
+        normalized["reviews"] = [
+            {
+                **review,
+                "date": parse_relative_date(review.get("date")) or review.get("date")
+            }
+            for review in normalized["reviews"]
+        ]
+    
+    # Process product_results if it exists
+    if "product_results" in normalized and isinstance(normalized["product_results"], dict):
+        product_results = normalized["product_results"]
+        
+        if "user_reviews" in product_results and isinstance(product_results["user_reviews"], list):
+            product_results["user_reviews"] = [
+                {
+                    **review,
+                    "date": parse_relative_date(review.get("date")) or review.get("date")
+                }
+                for review in product_results["user_reviews"]
+            ]
+        
+        if "reviews" in product_results and isinstance(product_results["reviews"], list):
+            product_results["reviews"] = [
+                {
+                    **review,
+                    "date": parse_relative_date(review.get("date")) or review.get("date")
+                }
+                for review in product_results["reviews"]
+            ]
+    
+    return normalized
 
 
 @router.get(
@@ -577,6 +641,10 @@ async def get_enriched_product_details(
             response.raise_for_status()
             immersive_data = response.json()
             
+            # Normalize all review dates to ISO format
+            logger.info("[Enriched] Normalizing review dates...")
+            immersive_data = normalize_review_dates(immersive_data)
+            
             logger.info(f"Successfully fetched immersive data for product: {product_id}")
             return {
                 "product_id": product_id,
@@ -635,6 +703,10 @@ async def generate_ai_verdict(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="enriched_data is required in request body"
             )
+        
+        # Normalize all review dates to ISO format
+        logger.info("[AI Verdict] Normalizing review dates...")
+        enriched_data = normalize_review_dates(enriched_data)
         
         # Check cache first
         ai_verdict_cache = getattr(generate_ai_verdict, '_cache', {})
