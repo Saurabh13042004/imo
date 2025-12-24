@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, Paperclip, Link, Code, Mic, X, Bot } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { API_BASE_URL } from '@/config/api';
 
 interface Message {
   id: string;
@@ -12,11 +13,24 @@ interface Message {
 interface IMOAIChatProps {
   productTitle?: string;
   productDescription?: string;
+  productPrice?: string;
+  productRating?: number;
+  productReviewsCount?: number;
+  aiVerdict?: {
+    summary?: string;
+    pros?: string[] | string;
+    cons?: string[] | string;
+    imo_score?: number;
+  };
 }
 
 export const IMOAIChat: React.FC<IMOAIChatProps> = ({ 
   productTitle = "Product",
-  productDescription = ""
+  productDescription = "",
+  productPrice,
+  productRating,
+  productReviewsCount,
+  aiVerdict
 }) => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [message, setMessage] = useState('');
@@ -58,48 +72,59 @@ export const IMOAIChat: React.FC<IMOAIChatProps> = ({
     };
 
     setMessages(prev => [...prev, userMsg]);
+    const currentMessage = message;
     setMessage('');
     setCharCount(0);
     setIsLoading(true);
 
-    // Simulate AI response (replace with actual API call)
-    setTimeout(() => {
+    try {
+      // Call backend chatbot API
+      const response = await fetch(`${API_BASE_URL}/api/v1/chatbot/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: currentMessage,
+          product_title: productTitle,
+          product_description: productDescription,
+          product_price: productPrice,
+          product_rating: productRating,
+          product_reviews_count: productReviewsCount,
+          ai_verdict: aiVerdict,
+          conversation_history: messages.map(msg => ({
+            role: msg.type === 'user' ? 'user' : 'assistant',
+            content: msg.content
+          }))
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get response from chatbot');
+      }
+
+      const data = await response.json();
+      
       const aiResponse: Message = {
         id: (Date.now() + 1).toString(),
         type: 'bot',
-        content: generateAIResponse(message, productTitle),
+        content: data.message,
         timestamp: new Date(),
       };
+      
       setMessages(prev => [...prev, aiResponse]);
+    } catch (error) {
+      console.error('Chatbot error:', error);
+      const errorResponse: Message = {
+        id: (Date.now() + 1).toString(),
+        type: 'bot',
+        content: "I'm having trouble processing your question right now. Please try again in a moment. 😅",
+        timestamp: new Date(),
+      };
+      setMessages(prev => [...prev, errorResponse]);
+    } finally {
       setIsLoading(false);
-    }, 800);
-  };
-
-  const generateAIResponse = (userMessage: string, productTitle: string): string => {
-    const lowerMessage = userMessage.toLowerCase();
-
-    if (lowerMessage.includes('price') || lowerMessage.includes('cost')) {
-      return `Based on my analysis of "${productTitle}", here's what I found about pricing:\n\n• Average price: Check product details above ⬆️\n• Price range: Varies by retailer\n• Best deals: Usually available on major platforms\n• My tip: Set a price alert to get notified when prices drop! 🔔`;
     }
-
-    if (lowerMessage.includes('review') || lowerMessage.includes('rating')) {
-      return `Reviews for "${productTitle}":\n\n✅ User ratings are displayed above\n✅ Real customer feedback available\n✅ Check short video reviews section\n\nWould you like me to summarize the pros and cons based on reviews?`;
-    }
-
-    if (lowerMessage.includes('alternative') || lowerMessage.includes('similar')) {
-      return `Looking for alternatives to "${productTitle}"?\n\nI can help you find similar products! Let me know:\n• Your budget range\n• Specific features you need\n• Brand preferences\n\nThis will help me recommend better alternatives! 🎯`;
-    }
-
-    if (lowerMessage.includes('feature') || lowerMessage.includes('spec')) {
-      return `Key features of "${productTitle}" are listed in the product information above ⬆️\n\nWould you like me to:\n• Explain any specific feature?\n• Compare it with competitors?\n• Help you decide if it's right for you?`;
-    }
-
-    if (lowerMessage.includes('buy') || lowerMessage.includes('where')) {
-      return `You can purchase "${productTitle}" from multiple retailers shown in the product details.\n\nTips for buying:\n✓ Compare prices across stores\n✓ Check return policies\n✓ Look for promotional codes\n✓ Set price alerts for better deals\n\nAny specific retailer you prefer? 🛍️`;
-    }
-
-    // Default helpful response
-    return `Great question about "${productTitle}"! 🤔\n\nI'm analyzing the product information to give you the best answer. Here's what I can help with:\n\n• Tell me about specific features\n• Compare prices and retailers\n• Explain pros and cons\n• Help you decide if it's right for you\n• Find alternatives\n\nTry asking me about any of these! What interests you most? 💡`;
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {

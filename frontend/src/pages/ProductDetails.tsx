@@ -875,6 +875,10 @@ const ProductDetails = () => {
         <IMOAIChat 
           productTitle={product?.title || "Product"}
           productDescription={enrichedData?.description || product?.description || ""}
+          productPrice={product?.price}
+          productRating={product?.rating}
+          productReviewsCount={product?.reviews_count}
+          aiVerdict={aiVerdict || undefined}
         />
       )}
     </div>
