@@ -15,7 +15,7 @@ export default function PaymentSuccess() {
   const queryClient = useQueryClient();
   const { refreshAccess, loading, subscription } = useUserAccess();
   const { handlePaymentSuccess } = useSubscriptionFlow();
-  const { accessToken } = useAuth();
+  const { accessToken, refreshUserProfile } = useAuth();
   const [isRefreshing, setIsRefreshing] = useState(true);
   const [pollingCount, setPollingCount] = useState(0);
   const [subscriptionStatus, setSubscriptionStatus] = useState<string>('free');
@@ -56,7 +56,11 @@ export default function PaymentSuccess() {
         if (response.ok) {
           console.log('✅ Manual checkout completion successful');
           setCheckoutCompleted(true);
-          // Immediately refresh access to get updated subscription
+          // Clear subscription cache to force refresh
+          localStorage.removeItem('user_subscription');
+          sessionStorage.removeItem('auth_user'); // Clear cached user data
+          // Refresh both user profile and subscription data
+          await refreshUserProfile();
           await refreshAccess();
         } else {
           const errorData = await response.json();

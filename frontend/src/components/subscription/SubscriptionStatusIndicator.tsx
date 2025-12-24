@@ -2,6 +2,7 @@ import { Badge } from '@/components/ui/badge';
 import { Crown, Sparkles, CheckCircle, Clock } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useUserAccess } from '@/hooks/useUserAccess';
+import { useEffect, useState } from 'react';
 
 interface SubscriptionStatusIndicatorProps {
   variant?: 'badge' | 'text' | 'icon';
@@ -18,10 +19,41 @@ export function SubscriptionStatusIndicator({
 }: SubscriptionStatusIndicatorProps) {
   const { user } = useAuth();
   const { subscription, hasActiveSubscription } = useUserAccess();
+  const [forceUpdate, setForceUpdate] = useState(0);
   
-  // Check subscription status from real-time data
-  const isTrial = subscription?.plan_type === 'trial' && subscription?.is_active;
-  const isPremium = subscription?.plan_type === 'premium' && subscription?.is_active;
+  // DIRECT READ from sessionStorage as fallback
+  const getDirectSubscriptionTier = () => {
+    try {
+      const storedUser = sessionStorage.getItem('auth_user');
+      if (storedUser) {
+        const userData = JSON.parse(storedUser);
+        return userData.subscription_tier;
+      }
+    } catch (e) {
+      console.error('Failed to read from sessionStorage:', e);
+    }
+    return null;
+  };
+  
+  const directTier = getDirectSubscriptionTier();
+  
+  // Force re-render when user changes
+  useEffect(() => {
+    setForceUpdate(prev => prev + 1);
+  }, [user?.subscription_tier, subscription?.plan_type, directTier]);
+  
+  // Debug logging - check what we're actually getting
+  console.log('SubscriptionStatusIndicator [render]:', {
+    user_subscription_tier: user?.subscription_tier,
+    directTier_from_sessionStorage: directTier,
+    subscription_plan_type: subscription?.plan_type,
+    subscription_is_active: subscription?.is_active,
+    forceUpdate
+  });
+  
+  // Check subscription status - prioritize direct sessionStorage read, then user.subscription_tier, then subscription API
+  const isTrial = (directTier === 'trial') || (user?.subscription_tier === 'trial') || (subscription?.plan_type === 'trial' && subscription?.is_active);
+  const isPremium = (directTier === 'premium') || (user?.subscription_tier === 'premium') || (subscription?.plan_type === 'premium' && subscription?.is_active);
 
   const sizeClasses = {
     sm: 'text-xs',
@@ -92,7 +124,7 @@ export function SubscriptionStatusIndicator({
       ) : isTrial ? (
         <>
           <Clock className={`mr-1 ${iconSizes[size]}`} />
-          Trial
+          Premium Trial
         </>
       ) : (
         <>

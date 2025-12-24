@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { User, LogOut, Heart, BarChart3, Settings } from 'lucide-react';
+import { User, LogOut, Heart, BarChart3, Settings, CreditCard } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 
@@ -89,6 +89,10 @@ export const UserMenu = () => {
         <DropdownMenuItem onClick={() => navigate('/profile')}>
           <User className="mr-2 h-4 w-4" />
           Profile Settings
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => navigate('/subscription-manager')}>
+          <CreditCard className="mr-2 h-4 w-4" />
+          Manage Subscription
         </DropdownMenuItem>
         <DropdownMenuItem onClick={() => navigate('/likes')}>
           <Heart className="mr-2 h-4 w-4" />

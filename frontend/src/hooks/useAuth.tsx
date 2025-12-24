@@ -17,6 +17,7 @@ export function useAuth() {
     loginWithGoogle: context.loginWithGoogle,
     changePassword: context.changePassword,
     refreshToken: context.refreshAccessToken,
+    refreshUserProfile: context.refreshUserProfile,
     accessToken: context.accessToken,
   };
 }

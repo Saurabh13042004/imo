@@ -19,6 +19,7 @@ export interface AuthContextType {
   loginWithGoogle: (response: any) => Promise<void>;
   logout: () => Promise<void>;
   refreshAccessToken: () => Promise<boolean>;
+  refreshUserProfile: () => Promise<void>;
   changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
 }
 
@@ -69,6 +70,25 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setAccessToken(tokens.accessToken);
             setRefreshToken(tokens.refreshToken);
             setUser(JSON.parse(storedUser));
+            
+            // Refresh user profile in background to get latest subscription_tier
+            // This ensures navbar shows correct subscription after payment
+            setTimeout(async () => {
+              try {
+                const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+                const response = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
+                  headers: { 'Authorization': `Bearer ${tokens.accessToken}` },
+                });
+                if (response.ok) {
+                  const freshUser: UserResponse = await response.json();
+                  storage.setItem(USER_STORAGE_KEY, JSON.stringify(freshUser));
+                  setUser(freshUser);
+                  console.log('🔄 User profile refreshed on load:', freshUser.subscription_tier);
+                }
+              } catch (error) {
+                console.error('Failed to refresh user profile on load:', error);
+              }
+            }, 500); // Small delay to not block initial render
           }
         }
       } catch (error) {
@@ -217,6 +237,32 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     });
   };
 
+  const refreshUserProfile = async () => {
+    if (!accessToken) {
+      console.warn('No access token available for profile refresh');
+      return;
+    }
+
+    try {
+      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to refresh user profile');
+      }
+
+      const userData: UserResponse = await response.json();
+      storeUser(userData);
+      console.log('✅ User profile refreshed:', userData);
+    } catch (error) {
+      console.error('Failed to refresh user profile:', error);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -230,6 +276,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         loginWithGoogle,
         logout,
         refreshAccessToken,
+        refreshUserProfile,
         changePassword,
       }}
     >
