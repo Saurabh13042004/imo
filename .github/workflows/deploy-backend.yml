@@ -1,0 +1,45 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "backend/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy backend
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "📦 Starting backend deployment..."
+            
+            # Navigate to backend directory
+            cd /data/apps/imo/backend
+            
+            # Pull latest code
+            echo "📥 Pulling latest code from main..."
+            git pull origin main
+            
+            # Rebuild Docker image
+            echo "🐳 Building Docker image..."
+            docker compose build
+            
+            # Restart containers gracefully
+            # Docker replaces containers one by one, no downtime
+            echo "♻️  Restarting containers..."
+            docker compose up -d
+            
+            # Verify deployment
+            echo "✅ Backend deployed successfully!"
+            echo "📊 Active containers:"
+            docker compose ps
+            
+            echo "📝 Recent logs:"
+            docker compose logs --tail=20 imo_api

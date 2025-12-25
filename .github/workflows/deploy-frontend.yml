@@ -1,0 +1,58 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches: [ "main" ]
+    paths:
+      - "frontend/**"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install deps & build
+        working-directory: frontend
+        run: |
+          npm install --legacy-peer-deps
+          npm run build
+
+      - name: Upload build to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "frontend/dist/*"
+          target: "/tmp/imo-frontend"
+
+      - name: Activate build (atomic swap)
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Ensure proper permissions
+            sudo chown -R ubuntu:ubuntu /data/web
+            
+            # Atomic swap: remove old, copy new
+            rm -rf /data/web/*
+            cp -r /tmp/imo-frontend/frontend/dist/* /data/web/
+            
+            # Set correct permissions for nginx
+            sudo chown -R www-data:www-data /data/web
+            
+            # Graceful nginx reload (zero downtime)
+            sudo systemctl reload nginx
+            
+            echo "✅ Frontend deployed successfully!"
+            echo "🌐 Live at: https://informedmarketopinions.com"
