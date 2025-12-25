@@ -5,7 +5,7 @@
 
 import { getSessionId } from '@/utils/sessionUtils';
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_URL = import.meta.env.VITE_API_URL;
 
 /**
  * Get auth token from sessionStorage
