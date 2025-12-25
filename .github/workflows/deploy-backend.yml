@@ -29,17 +29,17 @@ jobs:
             
             # Rebuild Docker image
             echo "🐳 Building Docker image..."
-            docker compose build
+            docker-compose build
             
             # Restart containers gracefully
             # Docker replaces containers one by one, no downtime
             echo "♻️  Restarting containers..."
-            docker compose up -d
+            docker-compose up -d
             
             # Verify deployment
             echo "✅ Backend deployed successfully!"
             echo "📊 Active containers:"
-            docker compose ps
+            docker-compose ps
             
             echo "📝 Recent logs:"
-            docker compose logs --tail=20 imo_api
+            docker-compose logs --tail=20 imo_api
