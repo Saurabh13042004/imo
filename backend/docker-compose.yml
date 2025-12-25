@@ -1,8 +1,10 @@
 version: '3.8'
 
 services:
+  # Redis - Message broker and result backend
   redis:
     image: redis:7-alpine
+    container_name: imo_redis
     ports:
       - "6379:6379"
     volumes:
@@ -12,15 +14,19 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - imo_network
 
+  # FastAPI Application
   api:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: imo_api
     env_file:
       - .env
     environment:
-      REDIS_URL: redis://redis:6379
+      REDIS_URL: redis://redis:6379/0
       DEBUG: "False"
       LOG_LEVEL: INFO
     ports:
@@ -31,6 +37,81 @@ services:
       redis:
         condition: service_healthy
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    networks:
+      - imo_network
+
+  # Celery Worker - Processes async review tasks
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery
+    container_name: imo_celery_worker
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DEBUG: "False"
+      LOG_LEVEL: INFO
+      PYTHONUNBUFFERED: "1"
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    command: python -m celery -A app.celery_app worker --loglevel=info --concurrency=4 --queues=default,reviews,high --hostname=worker1@%h -O fair --prefetch-multiplier=1 -E
+    networks:
+      - imo_network
+    restart: unless-stopped
+
+  # Optional: Celery Beat - For scheduled tasks
+  celery_beat:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery
+    container_name: imo_celery_beat
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      DEBUG: "False"
+      LOG_LEVEL: INFO
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    command: celery -A app.celery_app beat --loglevel=info
+    networks:
+      - imo_network
+    restart: unless-stopped
+
+  # Flower - Celery monitoring dashboard
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery
+    container_name: imo_flower
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    ports:
+      - "5555:5555"
+    depends_on:
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_started
+    command: celery -A app.celery_app flower --port=5555 --broker=redis://redis:6379/0
+    networks:
+      - imo_network
+    restart: unless-stopped
 
 volumes:
   redis_data:
+
+networks:
+  imo_network:
+    driver: bridge

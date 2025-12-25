@@ -16,6 +16,9 @@ from app.config import settings
 from app.database import init_db, close_db
 from app.api import api_router
 
+# Import Celery app to ensure tasks are loaded
+from app.celery_app import celery_app  # noqa: F401
+
 # Configure logging
 LOGGING_CONFIG = {
     "version": 1,

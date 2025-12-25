@@ -332,3 +332,178 @@ Respond in STRICT JSON format ONLY (no markdown, no explanation):
                 "verified_patterns": {"positive": [], "negative": []},
                 "error": str(e),
             }
+
+    async def format_community_reviews(self, raw_reviews: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Format community/forum reviews into structured review format with rating and 1-2 line summary.
+        
+        Args:
+            raw_reviews: List of raw extracted reviews
+        
+        Returns:
+            List of formatted reviews with structure: {rating, title, text, source, reviewer_name}
+        """
+        if not self.initialized:
+            logger.warning("[AIReviewService] Gemini API key not configured")
+            # Return raw reviews in best effort format
+            return {
+                "formatted_reviews": [
+                    {
+                        "rating": 3,
+                        "title": r.get("text", "")[:50],
+                        "text": r.get("text", ""),
+                        "source": r.get("source", "community"),
+                        "reviewer_name": "Community User",
+                        "confidence": r.get("validation_confidence", 0.5),
+                    }
+                    for r in raw_reviews[:20]
+                ],
+                "total_formatted": len(raw_reviews),
+                "fallback": True
+            }
+        
+        if not raw_reviews:
+            return {"formatted_reviews": [], "total_formatted": 0}
+        
+        try:
+            # Process reviews in batches of 10 for better accuracy
+            formatted_reviews = []
+            batch_size = 10
+            
+            for batch_start in range(0, min(len(raw_reviews), 50), batch_size):
+                batch_end = min(batch_start + batch_size, len(raw_reviews), len(raw_reviews))
+                batch = raw_reviews[batch_start:batch_end]
+                
+                # Create prompt for formatting
+                reviews_text = "\n\n---\n\n".join([
+                    f"Review {i+1}:\n{r.get('text', '')[:400]}"
+                    for i, r in enumerate(batch)
+                ])
+                
+                prompt = f"""For each forum/community review below, extract:
+1. A sentiment-based rating (1-5 scale)
+2. A title (max 8 words)
+3. A 1-2 line summary of the main point
+
+Reviews:
+{reviews_text}
+
+Respond with ONLY a JSON array, matching review order:
+[
+  {{"rating": 4, "title": "Great product, highly recommend", "summary": "Works as expected. Excellent quality and fast shipping."}},
+  {{"rating": 2, "title": "Disappointing, broke after a week", "summary": "Product stopped working after minimal use. Poor durability."}},
+  ...
+]
+
+Rules:
+- Rating: 5=very positive, 4=positive, 3=neutral, 2=negative, 1=very negative
+- Title: Extract key sentiment/opinion in max 8 words
+- Summary: Concise 1-2 lines capturing the essence
+- NO other text. Just the JSON array."""
+                
+                logger.info(f"[AIReviewService] Formatting community reviews batch ({batch_start+1}-{batch_end})")
+                response = self.model.generate_content(prompt)
+                batch_formatted = self._parse_json_response(response.text)
+                
+                # Validate and enhance response
+                if isinstance(batch_formatted, list):
+                    for i, formatted in enumerate(batch_formatted):
+                        if i < len(batch):
+                            original = batch[i]
+                            formatted_reviews.append({
+                                "rating": formatted.get("rating", 3),
+                                "title": formatted.get("title", original.get("text", "")[:50]),
+                                "text": formatted.get("summary", original.get("text", "")),
+                                "source": original.get("source", "community"),
+                                "reviewer_name": original.get("reviewer_name", "Community User"),
+                                "confidence": original.get("validation_confidence", 0.7),
+                                "original_text": original.get("text", ""),  # Keep for reference
+                            })
+            
+            logger.info(f"[AIReviewService] Successfully formatted {len(formatted_reviews)} community reviews")
+            return {
+                "formatted_reviews": formatted_reviews,
+                "total_formatted": len(formatted_reviews),
+                "raw_count": len(raw_reviews)
+            }
+            
+        except Exception as e:
+            logger.error(f"[AIReviewService] Error formatting community reviews: {e}")
+            # Return best effort formatting
+            return {
+                "formatted_reviews": [
+                    {
+                        "rating": 3,
+                        "title": r.get("text", "")[:50],
+                        "text": r.get("text", "")[:200],
+                        "source": r.get("source", "community"),
+                        "reviewer_name": "Community User",
+                        "confidence": r.get("validation_confidence", 0.5),
+                    }
+                    for r in raw_reviews[:20]
+                ],
+                "total_formatted": len(raw_reviews),
+                "error": str(e)
+            }
+
+    async def summarize_reviews(self, raw_reviews: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Summarize reviews to 1-2 lines with rating for each.
+        
+        Args:
+            raw_reviews: List of raw extracted reviews
+        
+        Returns:
+            List of summarized reviews with 1-2 line summaries and ratings
+        """
+        if not self.initialized:
+            logger.warning("[AIReviewService] Gemini API key not configured")
+            return {"reviews": raw_reviews, "summaries": []}
+        
+        if not raw_reviews:
+            return {"reviews": [], "summaries": []}
+        
+        try:
+            # Prepare reviews for summarization (batch process max 15)
+            reviews_to_summarize = raw_reviews[:15]
+            
+            # Create prompt for batch summarization
+            reviews_text = "\n\n---\n\n".join([
+                f"Review {i+1} (Rating: {r.get('rating', 'N/A')}):\n{r.get('text', '')[:500]}"
+                for i, r in enumerate(reviews_to_summarize)
+            ])
+            
+            prompt = f"""Summarize each review to 1-2 lines capturing the main point and sentiment.
+
+Reviews:
+{reviews_text}
+
+Respond with ONLY a JSON array, one summary per review in the same order:
+[
+  {{"rating": 5, "summary": "Excellent product, works perfectly and lasts long."}},
+  {{"rating": 4, "summary": "Great quality but slightly expensive for the features."}},
+  ...
+]
+
+NO other text. Just the JSON array."""
+            
+            logger.info(f"[AIReviewService] Summarizing {len(reviews_to_summarize)} reviews with AI")
+            response = self.model.generate_content(prompt)
+            summaries = self._parse_json_response(response.text)
+            
+            # Ensure summaries are in correct format
+            if isinstance(summaries, list):
+                logger.info(f"[AIReviewService] Successfully summarized {len(summaries)} reviews")
+                return {
+                    "reviews": reviews_to_summarize,
+                    "summaries": summaries,
+                    "total_summarized": len(summaries)
+                }
+            else:
+                logger.warning("[AIReviewService] Unexpected response format for summarization")
+                return {"reviews": reviews_to_summarize, "summaries": []}
+                
+        except Exception as e:
+            logger.error(f"[AIReviewService] Error summarizing reviews: {e}")
+            return {"reviews": raw_reviews, "summaries": [], "error": str(e)}
+

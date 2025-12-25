@@ -13,7 +13,9 @@ python-multipart==0.0.6
 google-search-results==2.4.2
 beautifulsoup4==4.12.2
 
-# Payment processing
+# Celery and async task processing
+celery==5.3.4
+flower==2.0.1  # Celery monitoring dashboard# Payment processing
 stripe==14.1.0
 
 # AWS SDK for S3 uploads

@@ -11,6 +11,7 @@ import { useSearchUrl } from "@/hooks/useSearchUrl";
 import { useAIVerdict } from "@/hooks/useAIVerdict";
 import { useCommunityReviews } from "@/hooks/useCommunityReviews";
 import { useStoreReviews } from "@/hooks/useStoreReviews";
+import { useGoogleReviews } from "@/hooks/useGoogleReviews";
 import { useDemoProduct } from "@/hooks/useDemoProduct";
 import { formatPriceWithCurrency } from "@/utils/currencyUtils";
 import { API_BASE_URL } from "@/config/api";
@@ -45,7 +46,6 @@ const ProductDetails = () => {
   const [loading, setLoading] = useState(true);
   const [enrichedData, setEnrichedData] = useState<any>(null);
   const [enrichmentLoading, setEnrichmentLoading] = useState(false);
-  const [googleReviews, setGoogleReviews] = useState<any>(null);
   const [refreshReviews, setRefreshReviews] = useState(0);
   const [isPriceAlertModalOpen, setIsPriceAlertModalOpen] = useState(false);
   const { trackProductView } = useAnalytics();
@@ -76,52 +76,11 @@ const ProductDetails = () => {
     storeUrls.length > 0 ? storeUrls : undefined
   );
 
-  // Fetch Google Shopping reviews - start ONLY after enrichedData arrives
-  // This runs in parallel with other APIs once enriched data is ready
-  useEffect(() => {
-    if (!enrichedData || !product?.product_url || !product?.title) return;
-
-    console.log('[ProductDetails] Starting Google reviews fetch for:', product.title);
-
-    // Don't wait for enrichedData - start fetching immediately
-    const fetchGoogleReviews = async () => {
-      try {
-        console.log('[ProductDetails] Fetching Google reviews API...');
-        // Don't set loading - just fetch in background
-        const response = await fetch(`${API_BASE_URL}/api/v1/reviews/google`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            product_name: product.title,
-            google_shopping_url: product.product_url || ''
-          })
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          console.log('[ProductDetails] Google reviews received:', data.reviews?.length || 0);
-          // Just set the data - don't show loading state
-          setGoogleReviews(data);
-          // Show toast notification when reviews arrive
-          if (data?.reviews?.length > 0) {
-            console.log('[ProductDetails] Showing Google reviews toast');
-            toast.success(
-              `IMO AI Just added ${data.reviews.length} Google Shopping reviews! Happy Shopping!`,
-              {
-                position: "bottom-left",
-                duration: 3000,
-              }
-            );
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching Google Shopping reviews:', error);
-        // Silently fail - no blocking, no error state
-      }
-    };
-
-    fetchGoogleReviews();
-  }, [enrichedData, product?.product_url, product?.title]);
+  // Use Google Reviews hook - start ONLY after enrichedData and product data arrives
+  const googleReviews = useGoogleReviews(
+    enrichedData && product?.title ? product.title : null,
+    enrichedData && product?.product_url ? product.product_url : null
+  );
 
   // Show notification when community reviews arrive
   useEffect(() => {
@@ -383,55 +342,71 @@ const ProductDetails = () => {
                 <div className="space-y-8 border-t border-border/50 pt-8">
                   {/* AI Verdict Section (for ALL products) */}
                   {aiVerdict && verdictStatus === "ready" && (
-                    <motion.div
-                      initial={{ y: 20, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      transition={{ duration: 0.4 }}
-                      className="bg-gradient-to-br from-primary/10 to-secondary/10 rounded-lg border border-primary/20 p-6 space-y-4"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h2 className="text-2xl font-bold text-foreground mb-2">
-                            IMO AI Verdict
-                          </h2>
-                          <p className="text-muted-foreground">
-                            {aiVerdict.summary}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-4xl font-bold text-primary">
-                            {aiVerdict.imo_score?.toFixed(1) || "N/A"}
-                          </div>
-                          <p className="text-xs text-muted-foreground">out of 10</p>
-                        </div>
-                      </div>
-
-                      {aiVerdict.who_should_buy && (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-border/30">
+                    <>
+                      <motion.div
+                        initial={{ y: 20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ duration: 0.4 }}
+                        className="bg-gradient-to-br from-primary/10 to-secondary/10 rounded-lg border border-primary/20 p-6 space-y-4"
+                      >
+                        <div className="flex items-start justify-between">
                           <div>
-                            <p className="text-sm font-semibold text-green-600 dark:text-green-400 mb-1">✓ Who should buy</p>
-                            <p className="text-sm text-muted-foreground">{aiVerdict.who_should_buy}</p>
+                            <h2 className="text-2xl font-bold text-foreground mb-2">
+                              IMO AI Verdict
+                            </h2>
+                            <p className="text-muted-foreground">
+                              {aiVerdict.summary}
+                            </p>
                           </div>
-                          {aiVerdict.who_should_avoid && (
-                            <div>
-                              <p className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-1">✗ Who should avoid</p>
-                              <p className="text-sm text-muted-foreground">{aiVerdict.who_should_avoid}</p>
+                          <div className="text-right">
+                            <div className="text-4xl font-bold text-primary">
+                              {aiVerdict.imo_score?.toFixed(1) || "N/A"}
                             </div>
-                          )}
+                            <p className="text-xs text-muted-foreground">out of 10</p>
+                          </div>
                         </div>
-                      )}
 
-                      {aiVerdict.deal_breakers && aiVerdict.deal_breakers.length > 0 && (
-                        <div className="pt-4 border-t border-border/30">
-                          <p className="text-sm font-semibold text-red-600 dark:text-red-400 mb-2">⚠ Deal Breakers</p>
-                          <ul className="text-sm text-muted-foreground space-y-1">
-                            {aiVerdict.deal_breakers.map((issue: string, idx: number) => (
-                              <li key={idx}>• {issue}</li>
-                            ))}
-                          </ul>
-                        </div>
+                        {aiVerdict.who_should_buy && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-border/30">
+                            <div>
+                              <p className="text-sm font-semibold text-green-600 dark:text-green-400 mb-1">✓ Who should buy</p>
+                              <p className="text-sm text-muted-foreground">{aiVerdict.who_should_buy}</p>
+                            </div>
+                            {aiVerdict.who_should_avoid && (
+                              <div>
+                                <p className="text-sm font-semibold text-orange-600 dark:text-orange-400 mb-1">✗ Who should avoid</p>
+                                <p className="text-sm text-muted-foreground">{aiVerdict.who_should_avoid}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {aiVerdict.deal_breakers && aiVerdict.deal_breakers.length > 0 && (
+                          <div className="pt-4 border-t border-border/30">
+                            <p className="text-sm font-semibold text-red-600 dark:text-red-400 mb-2">⚠ Deal Breakers</p>
+                            <ul className="text-sm text-muted-foreground space-y-1">
+                              {aiVerdict.deal_breakers.map((issue: string, idx: number) => (
+                                <li key={idx}>• {issue}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </motion.div>
+
+                      {/* AI Verdict Pros and Cons */}
+                      {(aiVerdict.pros?.length > 0 || aiVerdict.cons?.length > 0) && (
+                        <motion.div
+                          initial={{ y: 20, opacity: 0 }}
+                          animate={{ y: 0, opacity: 1 }}
+                          transition={{ duration: 0.4, delay: 0.1 }}
+                        >
+                          <ProductProsAndCons 
+                            pros={aiVerdict.pros}
+                            cons={aiVerdict.cons}
+                          />
+                        </motion.div>
                       )}
-                    </motion.div>
+                    </>
                   )}
 
                   {/* AI Verdict Processing State */}
@@ -454,14 +429,14 @@ const ProductDetails = () => {
                       transition={{ duration: 0.4 }}
                       className="space-y-6"
                     >
-                      <div className="border-b border-border/50 pb-4">
+                      {/* <div className="border-b border-border/50 pb-4">
                         <h2 className="text-2xl font-bold text-foreground">
                           Product Details
                         </h2>
                         <p className="text-sm text-muted-foreground mt-1">
                           Complete specifications from Amazon
                         </p>
-                      </div>
+                      </div> */}
 
                       {/* Price Comparison - Amazon buybox */}
                       {enrichedData.buybox && enrichedData.buybox.filter((offer: any) => offer.price && offer.price > 0).length > 0 && (
@@ -777,7 +752,8 @@ const ProductDetails = () => {
                     productTitle={product?.title || "Product"}
                     productSource={product?.source || "google_shopping"}
                     reviews={[
-                      // 1. Amazon reviews from unified response (canonical source)
+                      // 1. ENRICHMENT DATA (Amazon + External + User reviews from SerpAPI)
+                      // 1a. Amazon reviews from unified response (canonical source)
                       ...(enrichedData?.amazon_reviews?.map((review: any) => ({
                         id: review.id,
                         external_review_id: review.id,
@@ -791,7 +767,7 @@ const ProductDetails = () => {
                         negative_feedback: 0,
                         source: "Amazon"
                       })) || []),
-                      // 2. External reviews from enrichment layer (SerpAPI intelligent endpoint)
+                      // 1b. External reviews from enrichment layer (SerpAPI intelligent endpoint)
                       ...(enrichedData?.external_reviews?.map((review: any) => ({
                         id: `${review.source}-${review.author}-${review.title}`,
                         external_review_id: `${review.source}-${review.author}`,
@@ -805,7 +781,7 @@ const ProductDetails = () => {
                         negative_feedback: 0,
                         source: review.source
                       })) || []),
-                      // 3. User reviews from immersive product endpoint (non-Amazon products)
+                      // 1c. User reviews from immersive product endpoint (non-Amazon products)
                       ...(enrichedData?.immersive_data?.product_results?.user_reviews?.map((review: any) => ({
                         id: `${review.source}-${review.user_name}-${review.title}`,
                         external_review_id: `${review.source}-${review.user_name}`,
@@ -819,7 +795,21 @@ const ProductDetails = () => {
                         negative_feedback: 0,
                         source: review.source || "SerpAPI"
                       })) || []),
-                      // 4. Google Shopping reviews
+                      // 2. STORE REVIEWS (Celery async task)
+                      ...(storeReviews.reviews?.map((review: any) => ({
+                        id: `store-${review.store}-${review.text?.substring(0, 20)}`,
+                        external_review_id: `store-${review.store}`,
+                        reviewer_name: review.reviewer_name || review.author || "Store Reviewer",
+                        rating: review.rating || 0,
+                        title: review.title || `Review from ${review.store}`,
+                        review_text: review.text,
+                        verified_purchase: review.verified_purchase || false,
+                        review_date: review.date || new Date().toISOString(),
+                        positive_feedback: 0,
+                        negative_feedback: 0,
+                        source: review.store || "Store"
+                      })) || []),
+                      // 3. GOOGLE SHOPPING REVIEWS (Celery async task)
                       ...(googleReviews?.reviews?.map((review: any) => ({
                         id: `google-${review.reviewer_name}-${review.title}`,
                         external_review_id: `google-${review.reviewer_name}`,
@@ -833,30 +823,16 @@ const ProductDetails = () => {
                         negative_feedback: 0,
                         source: review.source || "Google Shopping"
                       })) || []),
-                      // 5. Store reviews
-                      ...(storeReviews.reviews?.map((review: any) => ({
-                        id: `store-${review.store}-${review.text?.substring(0, 20)}`,
-                        external_review_id: `store-${review.store}`,
-                        reviewer_name: review.author || "Store Reviewer",
-                        rating: review.rating || 0,
-                        title: `Review from ${review.store}`,
-                        review_text: review.text,
-                        verified_purchase: false,
-                        review_date: new Date().toISOString(),
-                        positive_feedback: 0,
-                        negative_feedback: 0,
-                        source: review.store || "Store"
-                      })) || []),
-                      // 6. Community reviews (Reddit + Forums)
+                      // 4. COMMUNITY REVIEWS (Reddit + Forums - Celery async task)
                       ...(communityReviews.reviews?.map((review: any) => ({
                         id: `community-${review.source}-${review.text?.substring(0, 20)}`,
                         external_review_id: `community-${review.source}`,
-                        reviewer_name: review.author || "Community Member",
-                        rating: 0,
+                        reviewer_name: review.reviewer_name || "Community Member",
+                        rating: review.rating || 0,
                         title: `${review.source} Discussion`,
                         review_text: review.text,
                         verified_purchase: false,
-                        review_date: new Date().toISOString(),
+                        review_date: review.date || new Date().toISOString(),
                         positive_feedback: 0,
                         negative_feedback: 0,
                         source: review.source

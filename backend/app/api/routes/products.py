@@ -676,12 +676,18 @@ async def generate_ai_verdict(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Generate AI verdict for a product using enriched data from frontend.
+    Queue AI verdict generation as an async Celery task (non-blocking).
     
-    CRITICAL: This endpoint DOES NOT refetch product data.
-    It uses ONLY the enriched_data provided in the request body.
+    The verdict includes:
+    - IMO Score (1-10)
+    - Pros and cons analysis
+    - Key insights from multiple sources
+    - Recommendation for target audience
     
-    Endpoint is product-agnostic (works for Amazon, Google Shopping, Walmart, etc.)
+    Frontend should poll /api/v1/reviews/status/{task_id} to check progress.
+    
+    CRITICAL: This endpoint DOES NOT generate the verdict.
+    It queues a task and returns the task_id for polling.
     
     Args:
         product_id: Product UUID from database
@@ -690,10 +696,10 @@ async def generate_ai_verdict(
             - scrape_stores: Whether to scrape store pages for insights
     
     Returns:
-        { status: "ready"|"processing"|"error", verdict?: {...}, message?: "..." }
+        { task_id: "celery-task-id", status: "pending" }
     """
     try:
-        logger.info(f"[AI Verdict] Processing verdict for product: {product_id}")
+        from app.tasks.review_tasks import generate_ai_verdict_task
         
         enriched_data = request.enriched_data
         scrape_stores = request.scrape_stores
@@ -705,60 +711,32 @@ async def generate_ai_verdict(
             )
         
         # Normalize all review dates to ISO format
-        logger.info("[AI Verdict] Normalizing review dates...")
+        logger.info(f"[AI Verdict API] Normalizing review dates for product: {product_id}")
         enriched_data = normalize_review_dates(enriched_data)
         
-        # Check cache first
-        ai_verdict_cache = getattr(generate_ai_verdict, '_cache', {})
-        if not hasattr(generate_ai_verdict, '_cache'):
-            generate_ai_verdict._cache = ai_verdict_cache
-        
-        if product_id in ai_verdict_cache:
-            logger.info(f"[AI Verdict] Cache hit for product: {product_id}")
-            return {
-                "status": "ready",
-                "verdict": ai_verdict_cache[product_id]
-            }
-        
-        logger.info(f"[AI Verdict] Starting verdict generation for product: {product_id}")
-        
-        # Optionally scrape store pages for additional insights
-        store_insights = []
-        if scrape_stores:
-            logger.info(f"[AI Verdict] Scraping stores for product: {product_id}")
-            stores = enriched_data.get("immersive_data", {}).get("product_results", {}).get("stores", [])
-            store_insights = await ai_service.scrape_store_insights(stores)
-            logger.info(f"[AI Verdict] Scraped {len(store_insights)} store insights")
-        
-        # Generate verdict using ONLY the enriched data provided
-        verdict = await ai_service.generate_product_verdict(
+        # Queue the task
+        logger.info(f"[AI Verdict API] Queuing AI verdict task for product: {product_id}")
+        task = generate_ai_verdict_task.delay(
             product_id=product_id,
             enriched_data=enriched_data,
-            store_insights=store_insights
+            scrape_stores=scrape_stores
         )
         
-        if verdict:
-            # Cache the verdict
-            ai_verdict_cache[product_id] = verdict
-            logger.info(f"[AI Verdict] Successfully generated verdict for product: {product_id}")
-            return {
-                "status": "ready",
-                "verdict": verdict
-            }
-        else:
-            logger.warning(f"[AI Verdict] Failed to generate verdict for product: {product_id}")
-            return {
-                "status": "error",
-                "message": "Failed to generate AI verdict"
-            }
+        logger.info(f"[AI Verdict API] Queued task {task.id} for product: {product_id}")
+        
+        return {
+            "task_id": task.id,
+            "status": "pending",
+            "message": "AI verdict generation queued. Poll /api/v1/reviews/status/{task_id} to check progress."
+        }
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[AI Verdict] Error generating verdict for {product_id}: {e}", exc_info=True)
+        logger.error(f"[AI Verdict API] Error queuing verdict for {product_id}: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate AI verdict: {str(e)}"
+            detail=f"Failed to queue AI verdict generation: {str(e)}"
         )
 
 

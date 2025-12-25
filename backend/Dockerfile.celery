@@ -1,0 +1,40 @@
+# Dockerfile for Celery Worker and Beat
+# Used for running Celery workers and beat scheduler
+
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies including Chromium for Selenium
+RUN apt-get update && apt-get install -y \
+    gcc \
+    postgresql-client \
+    libpq-dev \
+    curl \
+    wget \
+    gnupg \
+    unzip \
+    chromium \
+    chromium-driver \
+    && rm -rf /var/lib/apt/lists/*
+
+# Verify chromium is installed and set PATH
+RUN which chromium || which chromium-browser || echo "Warning: chromium not found in PATH"
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy application code
+COPY . .
+
+# Create non-root user for security (optional)
+# RUN useradd -m -u 1000 celery && chown -R celery:celery /app
+# USER celery
+
+# Expose port for Flower (optional)
+EXPOSE 5555
+
+# Default command (can be overridden in docker-compose)
+CMD ["celery", "-A", "app.celery_app", "worker", "--loglevel=info"]
