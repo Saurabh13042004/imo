@@ -32,7 +32,7 @@ const faqData: FaqItem[] = [
   {
     id: "free",
     question: "Is it really free?",
-    answer: "Yes! You can always browse the top 3 products in any category for free. For deeper insights, unlock specific categories for $4.99 each or go unlimited with our $10.99/month subscription. No hidden fees.",
+    answer: "Yes! You can always search up to 3 products in any category for free. For deeper insights, unlock unlimited with our $9.99/month subscription. No hidden fees.",
     icon: DollarSign,
   },
 ];

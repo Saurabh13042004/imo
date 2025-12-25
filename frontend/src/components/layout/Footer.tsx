@@ -122,7 +122,7 @@ export const Footer = () => {
             </h3>
             <ul className="space-y-3">
               <li>
-                <Link to="/help" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                <Link to="/contact" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                   Help Center
                 </Link>
               </li>
@@ -132,7 +132,7 @@ export const Footer = () => {
                 </Link>
               </li>
               <li>
-                <a href="mailto:support@imo.com" className="text-sm text-muted-foreground hover:text-primary transition-colors">
+                <a href="mailto:imhollc27@gmail.com" className="text-sm text-muted-foreground hover:text-primary transition-colors">
                   Report an Issue
                 </a>
               </li>

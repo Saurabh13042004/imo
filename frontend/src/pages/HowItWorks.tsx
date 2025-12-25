@@ -142,7 +142,7 @@ const HowItWorks = () => {
               Join thousands of users who are already making smarter purchasing decisions with IMO.
             </p>
             <motion.a
-              href="/search"
+              href="/"
               className="inline-block bg-primary text-primary-foreground px-8 py-3 rounded-xl font-semibold hover:bg-primary/90 transition-colors"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
