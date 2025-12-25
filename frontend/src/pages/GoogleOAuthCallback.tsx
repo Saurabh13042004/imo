@@ -4,6 +4,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import toast from 'react-hot-toast';
 
+const API_URL = import.meta.env.VITE_API_URL;
+
 export const GoogleOAuthCallback = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -33,7 +35,7 @@ export const GoogleOAuthCallback = () => {
         const loadingToast = toast.loading('Authenticating with Google...');
 
         // Call backend to exchange code for tokens
-        const response = await fetch(`/api/v1/auth/google/callback?code=${encodeURIComponent(code)}`, {
+        const response = await fetch(`${API_URL}/api/v1/auth/google/callback?code=${encodeURIComponent(code)}`, {
           method: 'POST',
         });
 
