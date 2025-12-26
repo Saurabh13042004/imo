@@ -379,10 +379,28 @@ export const DEMO_PRODUCTS = {
           ],
           videos: [
             {
-              title: "4K Ultra HD Monitor - Comprehensive Review",
-              description: "In-depth review of the 4K Ultra HD Monitor for professionals",
-              link: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-              thumbnail: "https://img.youtube.com/vi/dQw4w9WgXcQ/mqdefault.jpg"
+              title: "4K Monitor Professional Setup & Review",
+              description: "Complete review of professional 4K monitors for content creators",
+              link: "https://www.youtube.com/watch?v=FlLMxRjdATM",
+              thumbnail: "https://img.youtube.com/vi/FlLMxRjdATM/mqdefault.jpg"
+            },
+            {
+              title: "4K Ultra HD Monitor - Unboxing & First Impressions",
+              description: "Unboxing and initial setup of the 4K Ultra HD Monitor",
+              link: "https://www.youtube.com/watch?v=0JcY3mB6aCw",
+              thumbnail: "https://img.youtube.com/vi/0JcY3mB6aCw/mqdefault.jpg"
+            },
+            {
+              title: "Best 4K Monitor for Video Editing",
+              description: "In-depth look at color accuracy and video editing capabilities",
+              link: "https://www.youtube.com/watch?v=S9xfTk-hVT4",
+              thumbnail: "https://img.youtube.com/vi/S9xfTk-hVT4/mqdefault.jpg"
+            },
+            {
+              title: "4K Monitor Gaming Performance & Features",
+              description: "Testing gaming performance and advanced features on 4K display",
+              link: "https://www.youtube.com/watch?v=dj5s5PsAeMw",
+              thumbnail: "https://img.youtube.com/vi/dj5s5PsAeMw/mqdefault.jpg"
             }
           ],
           stores: [
@@ -605,10 +623,28 @@ export const DEMO_PRODUCTS = {
           ],
           videos: [
             {
-              title: "Mechanical Gaming Keyboard - Detailed Review",
-              description: "Complete review and unboxing of the Mechanical Gaming Keyboard",
-              link: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-              thumbnail: "https://img.youtube.com/vi/dQw4w9WgXcQ/mqdefault.jpg"
+              title: "Mechanical Gaming Keyboard - Pro Review",
+              description: "Professional review of high-performance mechanical keyboard",
+              link: "https://www.youtube.com/watch?v=iXROkS2rMV8",
+              thumbnail: "https://img.youtube.com/vi/iXROkS2rMV8/mqdefault.jpg"
+            },
+            {
+              title: "Best Mechanical Keyboard for Gaming",
+              description: "Testing mechanical keyboard switches and response time for gaming",
+              link: "https://www.youtube.com/watch?v=ktTEJjLl2o8",
+              thumbnail: "https://img.youtube.com/vi/ktTEJjLl2o8/mqdefault.jpg"
+            },
+            {
+              title: "Mechanical Keyboard - Unboxing & Setup",
+              description: "Unboxing, setup, and first impressions of mechanical gaming keyboard",
+              link: "https://www.youtube.com/watch?v=D_XtcI9yr9I",
+              thumbnail: "https://img.youtube.com/vi/D_XtcI9yr9I/mqdefault.jpg"
+            },
+            {
+              title: "RGB Mechanical Keyboard Features & Performance",
+              description: "Detailed breakdown of RGB lighting, programmable macros, and performance",
+              link: "https://www.youtube.com/watch?v=PNNAuT2b9c0",
+              thumbnail: "https://img.youtube.com/vi/PNNAuT2b9c0/mqdefault.jpg"
             }
           ],
           stores: [
