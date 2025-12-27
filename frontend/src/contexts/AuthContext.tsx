@@ -76,7 +76,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             // This ensures navbar shows correct subscription after payment
             setTimeout(async () => {
               try {
-                const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+                const API_BASE_URL = import.meta.env.VITE_API_URL;
                 const response = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
                   headers: { 'Authorization': `Bearer ${tokens.accessToken}` },
                 });
@@ -137,7 +137,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // Claim orphaned price alerts (alerts created before login with user's email)
   const claimOrphanedAlerts = async (token: string) => {
     try {
-      await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/price-alerts/claim-orphaned`, {
+      await fetch(`${import.meta.env.VITE_API_URL'}/api/v1/price-alerts/claim-orphaned`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -245,7 +245,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const API_BASE_URL = import.meta.env.VITE_API_URL';
       const response = await fetch(`${API_BASE_URL}/api/v1/auth/me`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
