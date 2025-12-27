@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { PaymentTransactionsCard } from '@/components/account/PaymentTransactionsCard';
 import User from 'lucide-react/dist/esm/icons/user';
 import Mail from 'lucide-react/dist/esm/icons/mail';
 import Lock from 'lucide-react/dist/esm/icons/lock';
@@ -357,11 +358,12 @@ export default function Profile() {
 
         {/* Tabs */}
         <Tabs defaultValue="personal" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="personal">Personal</TabsTrigger>
             <TabsTrigger value="photo">Photo</TabsTrigger>
             <TabsTrigger value="security">Security</TabsTrigger>
             <TabsTrigger value="reviews">My Reviews</TabsTrigger>
+            <TabsTrigger value="payments">Payments</TabsTrigger>
             <TabsTrigger value="oauth">Connected Apps</TabsTrigger>
           </TabsList>
 
@@ -557,6 +559,11 @@ export default function Profile() {
                 </form>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Payments Tab */}
+          <TabsContent value="payments" className="space-y-4">
+            <PaymentTransactionsCard />
           </TabsContent>
 
           {/* OAuth Tab */}

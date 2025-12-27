@@ -36,6 +36,9 @@ class UserRole(Base):
     __tablename__ = 'user_roles'
 
     id = Column(PG_UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
-    user_id = Column(PG_UUID(as_uuid=True), nullable=False, index=True)
+    user_id = Column(PG_UUID(as_uuid=True), ForeignKey('profiles.id', ondelete='CASCADE'), nullable=False, index=True)
     role = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    
+    # Relationships
+    user = relationship('Profile')

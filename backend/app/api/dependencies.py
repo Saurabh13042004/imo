@@ -55,9 +55,15 @@ async def get_current_user(
     Raises:
         HTTPException: If token is invalid or user not found
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"[GET_CURRENT_USER] Token received, length: {len(token) if token else 0}")
+    
     # Decode token
     payload = decode_token(token)
     if not payload:
+        logger.warning("[GET_CURRENT_USER] Token decoding failed")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
@@ -66,6 +72,7 @@ async def get_current_user(
     
     # Check token type
     if payload.get("type") != "access":
+        logger.warning(f"[GET_CURRENT_USER] Wrong token type: {payload.get('type')}")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token type",
@@ -74,11 +81,14 @@ async def get_current_user(
     
     user_id = payload.get("user_id")
     if not user_id:
+        logger.warning("[GET_CURRENT_USER] No user_id in token")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token payload",
             headers={"WWW-Authenticate": "Bearer"}
         )
+    
+    logger.info(f"[GET_CURRENT_USER] Looking up user {user_id}")
     
     # Get user from database
     stmt = select(Profile).where(Profile.id == user_id)
@@ -86,12 +96,14 @@ async def get_current_user(
     user = result.scalars().first()
     
     if not user:
+        logger.warning(f"[GET_CURRENT_USER] User {user_id} not found in database")
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found",
             headers={"WWW-Authenticate": "Bearer"}
         )
     
+    logger.info(f"[GET_CURRENT_USER] User {user_id} authenticated successfully")
     return user
 
 

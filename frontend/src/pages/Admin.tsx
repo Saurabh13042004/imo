@@ -10,6 +10,7 @@ import {
   FileText,
   Star,
   Mail,
+  Activity,
   Loader2,
 } from "lucide-react";
 import {
@@ -22,7 +23,14 @@ import {
   SidebarProvider,
   SidebarRail,
 } from "@/components/ui/sidebar";
-import { AdminDashboardContent, UsersTable, SubscriptionsTable, UrlsTable } from "@/components/admin";
+import { AdminDashboardContent, UsersTable, SubscriptionsTable, TransactionsTable, SubscriptionsView, ServerMonitoring, UrlsTable } from "@/components/admin";
+import { 
+  useAdminPaymentTransactions, 
+  useAdminErrorLogs, 
+  useAdminReviews, 
+  useAdminContacts,
+  useAdminBackgroundTasks 
+} from "@/hooks/useAdminApi";
 
 const menuItems = [
   {
@@ -47,7 +55,19 @@ const menuItems = [
     title: "Transactions",
     icon: CreditCard,
     value: "transactions",
-    description: "Subscriptions & events",
+    description: "Payment transactions",
+  },
+  {
+    title: "Subscriptions",
+    icon: CreditCard,
+    value: "subscriptions",
+    description: "User subscriptions",
+  },
+  {
+    title: "Server Monitoring",
+    icon: Activity,
+    value: "monitoring",
+    description: "Docker & Celery health",
   },
   {
     title: "Logs",
@@ -114,7 +134,11 @@ const Admin = () => {
       case "users":
         return <UsersTable />;
       case "transactions":
-        return <TransactionsView />;
+        return <TransactionsTable />;
+      case "subscriptions":
+        return <SubscriptionsView />;
+      case "monitoring":
+        return <ServerMonitoring />;
       case "logs":
         return <LogsView />;
       case "reviews":
@@ -203,15 +227,24 @@ const Admin = () => {
 
 // Analytics View Component
 const ActivityAnalyticsView = () => {
+  const { data: taskData, isLoading: tasksLoading } = useAdminBackgroundTasks(0, 50);
+
+  if (tasksLoading) {
+    return <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin mx-auto" /></div>;
+  }
+
+  // Calculate basic stats from tasks
+  const stats = [
+    { label: "Daily Searches", value: "12.4K", change: "+5.2%", icon: "📊" },
+    { label: "Active Users", value: "2,345", change: "+12.1%", icon: "👥" },
+    { label: "Avg. Session", value: "8m 42s", change: "+2.3%", icon: "⏱️" },
+    { label: "User Interactions", value: "45.2K", change: "+8.4%", icon: "🔗" },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {[
-          { label: "Daily Searches", value: "12.4K", change: "+5.2%", icon: "📊" },
-          { label: "Active Users", value: "2,345", change: "+12.1%", icon: "👥" },
-          { label: "Avg. Session", value: "8m 42s", change: "+2.3%", icon: "⏱️" },
-          { label: "User Interactions", value: "45.2K", change: "+8.4%", icon: "🔗" },
-        ].map((stat, idx) => (
+        {stats.map((stat, idx) => (
           <div key={idx} className="bg-white rounded-lg border border-slate-200 p-6 hover:shadow-lg transition-shadow">
             <div className="flex items-center justify-between">
               <div>
@@ -273,13 +306,23 @@ const ActivityAnalyticsView = () => {
 
 // Transactions View Component
 const TransactionsView = () => {
+  const { data: transactionData, isLoading } = useAdminPaymentTransactions(0, 50);
+
+  if (isLoading) {
+    return <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin mx-auto" /></div>;
+  }
+
+  const transactions = transactionData?.data || [];
+  const totalRevenue = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+  const failedCount = transactions.filter(t => t.status === 'failed').length;
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { label: "Total Revenue", value: "$12,450.00", color: "bg-green-50 border-green-200" },
-          { label: "Active Subscriptions", value: "324", color: "bg-blue-50 border-blue-200" },
-          { label: "Failed Transactions", value: "12", color: "bg-red-50 border-red-200" },
+          { label: "Total Revenue", value: `$${totalRevenue.toFixed(2)}`, color: "bg-green-50 border-green-200" },
+          { label: "Total Transactions", value: transactions.length.toString(), color: "bg-blue-50 border-blue-200" },
+          { label: "Failed Transactions", value: failedCount.toString(), color: "bg-red-50 border-red-200" },
         ].map((stat, idx) => (
           <div key={idx} className={`rounded-lg border ${stat.color} p-6`}>
             <p className="text-sm text-slate-600 font-medium">{stat.label}</p>
@@ -297,24 +340,26 @@ const TransactionsView = () => {
             <thead>
               <tr className="border-b border-slate-200">
                 <th className="text-left py-3 px-4 text-sm font-semibold text-slate-900">Transaction ID</th>
-                <th className="text-left py-3 px-4 text-sm font-semibold text-slate-900">User</th>
                 <th className="text-left py-3 px-4 text-sm font-semibold text-slate-900">Amount</th>
                 <th className="text-left py-3 px-4 text-sm font-semibold text-slate-900">Status</th>
                 <th className="text-left py-3 px-4 text-sm font-semibold text-slate-900">Date</th>
               </tr>
             </thead>
             <tbody>
-              {[...Array(5)].map((_, idx) => (
+              {transactions.slice(0, 5).map((txn, idx) => (
                 <tr key={idx} className="border-b border-slate-100 hover:bg-slate-50">
-                  <td className="py-3 px-4 text-sm text-slate-700">TXN-{1001 + idx}</td>
-                  <td className="py-3 px-4 text-sm text-slate-700">User {idx + 1}</td>
-                  <td className="py-3 px-4 text-sm font-semibold text-slate-900">${99.99 * (idx + 1)}</td>
+                  <td className="py-3 px-4 text-sm text-slate-700">{txn.id?.substring(0, 8) || `TXN-${1001 + idx}`}</td>
+                  <td className="py-3 px-4 text-sm font-semibold text-slate-900">${txn.amount?.toFixed(2) || '0.00'}</td>
                   <td className="py-3 px-4 text-sm">
-                    <span className="inline-block px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
-                      Completed
+                    <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${
+                      txn.status === 'success' ? 'bg-green-100 text-green-700' :
+                      txn.status === 'failed' ? 'bg-red-100 text-red-700' :
+                      'bg-yellow-100 text-yellow-700'
+                    }`}>
+                      {txn.status || 'pending'}
                     </span>
                   </td>
-                  <td className="py-3 px-4 text-sm text-slate-600">Dec {24 - idx}, 2025</td>
+                  <td className="py-3 px-4 text-sm text-slate-600">{txn.createdAt ? new Date(txn.createdAt).toLocaleDateString() : 'N/A'}</td>
                 </tr>
               ))}
             </tbody>
@@ -327,74 +372,59 @@ const TransactionsView = () => {
 
 // Logs View Component
 const LogsView = () => {
+  const { data: errorData, isLoading } = useAdminErrorLogs(0, 50);
+
+  if (isLoading) {
+    return <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin mx-auto" /></div>;
+  }
+
+  const errorLogs = errorData?.data || [];
+
   return (
     <div className="space-y-6">
-      <div className="bg-white rounded-lg border border-slate-200 p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-slate-900">Background Tasks</h3>
-          <span className="text-xs font-semibold px-3 py-1 rounded-full bg-green-100 text-green-700">All Running</span>
-        </div>
-        <div className="space-y-3">
-          {[
-            { task: "Email Notifications", status: "running", progress: 95 },
-            { task: "Database Backup", status: "running", progress: 60 },
-            { task: "Cache Optimization", status: "running", progress: 100 },
-            { task: "Log Cleanup", status: "scheduled", progress: 0 },
-          ].map((log, idx) => (
-            <div key={idx} className="p-4 rounded-lg border border-slate-200 hover:shadow-sm transition-shadow">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-medium text-slate-900">{log.task}</span>
-                <span className={`text-xs font-semibold px-2 py-1 rounded ${
-                  log.status === "running" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600"
-                }`}>
-                  {log.status}
-                </span>
-              </div>
-              {log.progress > 0 && (
-                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-blue-500 transition-all" style={{ width: `${log.progress}%` }} />
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {[
+          { label: "Total Errors", value: errorData?.total?.toString() || '0', color: "bg-red-50 border-red-200" },
+          { label: "Recent 24h", value: errorLogs.filter(e => {
+            const date = new Date(e.created_at);
+            const dayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+            return date > dayAgo;
+          }).length.toString(), color: "bg-orange-50 border-orange-200" },
+          { label: "Critical", value: errorLogs.filter(e => e.error_type === 'critical' || e.error_message?.includes('Error')).length.toString(), color: "bg-yellow-50 border-yellow-200" },
+        ].map((stat, idx) => (
+          <div key={idx} className={`rounded-lg border ${stat.color} p-6`}>
+            <p className="text-sm text-slate-600 font-medium">{stat.label}</p>
+            <p className="text-2xl font-bold text-slate-900 mt-2">{stat.value}</p>
+          </div>
+        ))}
       </div>
 
       <div className="bg-white rounded-lg border border-slate-200 p-6">
         <h3 className="text-lg font-semibold text-slate-900 mb-4">Error Logs</h3>
         <div className="space-y-3 max-h-96 overflow-y-auto">
-          {[
-            { severity: "error", message: "Failed to process payment for user #1234" },
-            { severity: "warning", message: "High memory usage detected on server" },
-            { severity: "error", message: "Email service timeout after 30 seconds" },
-            { severity: "info", message: "User backup completed successfully" },
-          ].map((log, idx) => (
-            <div key={idx} className={`p-3 rounded-lg border ${
-              log.severity === "error" ? "bg-red-50 border-red-200" : 
-              log.severity === "warning" ? "bg-yellow-50 border-yellow-200" : 
-              "bg-blue-50 border-blue-200"
-            }`}>
+          {errorLogs.map((log, idx) => (
+            <div key={idx} className={`p-4 rounded-lg border bg-red-50 border-red-200`}>
               <div className="flex items-start gap-3">
-                <span className={`text-lg ${
-                  log.severity === "error" ? "text-red-600" :
-                  log.severity === "warning" ? "text-yellow-600" :
-                  "text-blue-600"
-                }`}>
-                  {log.severity === "error" ? "❌" : log.severity === "warning" ? "⚠️" : "ℹ️"}
-                </span>
+                <span className="text-lg text-red-600">❌</span>
                 <div className="flex-1">
-                  <p className={`text-sm font-medium ${
-                    log.severity === "error" ? "text-red-900" :
-                    log.severity === "warning" ? "text-yellow-900" :
-                    "text-blue-900"
-                  }`}>
-                    {log.message}
-                  </p>
-                  <p className="text-xs text-slate-500 mt-1">Just now</p>
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-red-900">{log.function_name || 'Unknown Function'}</p>
+                      <p className="text-xs text-red-700 mt-1">{log.error_type}</p>
+                      <p className="text-sm text-slate-700 mt-2">{log.error_message}</p>
+                      {log.query_context && (
+                        <p className="text-xs text-slate-600 mt-1">Context: {log.query_context}</p>
+                      )}
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">{log.created_at ? new Date(log.created_at).toLocaleString() : 'Just now'}</p>
                 </div>
               </div>
             </div>
           ))}
+          {errorLogs.length === 0 && (
+            <div className="text-center py-8 text-slate-500">No error logs found</div>
+          )}
         </div>
       </div>
     </div>
@@ -403,15 +433,32 @@ const LogsView = () => {
 
 // Reviews View Component
 const ReviewsView = () => {
+  const { data: reviewData, isLoading } = useAdminReviews(0, 50);
+
+  if (isLoading) {
+    return <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin mx-auto" /></div>;
+  }
+
+  const reviews = reviewData?.data || [];
+  const avgRating = reviews.length > 0 
+    ? (reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / reviews.length).toFixed(1)
+    : '0';
+
+  const stats = [
+    { label: "Total Reviews", value: reviewData?.total?.toString() || '0', icon: "⭐" },
+    { label: "Avg. Rating", value: `${avgRating}/5`, icon: "📈" },
+    { label: "This Week", value: reviews.filter(r => {
+      const date = new Date(r.created_at);
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      return date > weekAgo;
+    }).length.toString(), icon: "📊" },
+    { label: "Pending", value: "0", icon: "⏳" },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {[
-          { label: "Total Reviews", value: "1,234", icon: "⭐" },
-          { label: "Avg. Rating", value: "4.7/5", icon: "📈" },
-          { label: "This Week", value: "127", icon: "📊" },
-          { label: "Pending", value: "23", icon: "⏳" },
-        ].map((stat, idx) => (
+        {stats.map((stat, idx) => (
           <div key={idx} className="bg-white rounded-lg border border-slate-200 p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -427,23 +474,31 @@ const ReviewsView = () => {
       <div className="bg-white rounded-lg border border-slate-200 p-6">
         <h3 className="text-lg font-semibold text-slate-900 mb-4">Recent Reviews</h3>
         <div className="space-y-4">
-          {[...Array(5)].map((_, idx) => (
+          {reviews.slice(0, 5).map((review, idx) => (
             <div key={idx} className="p-4 rounded-lg border border-slate-200 hover:shadow-sm transition-shadow">
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <p className="font-medium text-slate-900">User {idx + 1}</p>
-                  <p className="text-sm text-slate-600">Reviewed: iPhone 15 Pro</p>
+                  <p className="font-medium text-slate-900">{review.title || 'Untitled Review'}</p>
+                  <p className="text-sm text-slate-600 mt-1">Rating: {review.rating}/5</p>
                 </div>
                 <div className="flex gap-1">
                   {[...Array(5)].map((_, i) => (
-                    <span key={i} className={i < 4 ? "text-yellow-400" : "text-slate-300"}>⭐</span>
+                    <span key={i} className={i < (review.rating || 0) ? "text-yellow-400" : "text-slate-300"}>⭐</span>
                   ))}
                 </div>
               </div>
-              <p className="text-sm text-slate-600 mt-3">Great product! Exceeded my expectations. Highly recommended for everyone.</p>
-              <p className="text-xs text-slate-500 mt-3">2 days ago</p>
+              {review.description && (
+                <p className="text-sm text-slate-600 mt-3">{review.description}</p>
+              )}
+              {review.video_url && (
+                <p className="text-xs text-blue-600 mt-2">📹 Has video</p>
+              )}
+              <p className="text-xs text-slate-500 mt-3">{review.created_at ? new Date(review.created_at).toLocaleDateString() : 'Recently'}</p>
             </div>
           ))}
+          {reviews.length === 0 && (
+            <div className="text-center py-8 text-slate-500">No reviews found</div>
+          )}
         </div>
       </div>
     </div>
@@ -452,15 +507,27 @@ const ReviewsView = () => {
 
 // Contacts View Component
 const ContactsView = () => {
+  const { data: contactData, isLoading } = useAdminContacts(0, 50);
+
+  if (isLoading) {
+    return <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin mx-auto" /></div>;
+  }
+
+  const contacts = contactData?.data || [];
+  const resolvedCount = contacts.filter(c => c.status === 'resolved').length;
+  const pendingCount = contacts.filter(c => c.status !== 'resolved').length;
+
+  const stats = [
+    { label: "Total Queries", value: contactData?.total?.toString() || '0', color: "bg-blue-50" },
+    { label: "Resolved", value: resolvedCount.toString(), color: "bg-green-50" },
+    { label: "Pending", value: pendingCount.toString(), color: "bg-yellow-50" },
+    { label: "Response Time", value: "2.3h", color: "bg-purple-50" },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {[
-          { label: "Total Queries", value: "567", color: "bg-blue-50" },
-          { label: "Resolved", value: "489", color: "bg-green-50" },
-          { label: "Pending", value: "45", color: "bg-yellow-50" },
-          { label: "Response Time", value: "2.3h", color: "bg-purple-50" },
-        ].map((stat, idx) => (
+        {stats.map((stat, idx) => (
           <div key={idx} className={`${stat.color} rounded-lg border border-slate-200 p-6`}>
             <p className="text-sm text-slate-600 font-medium">{stat.label}</p>
             <p className="text-2xl font-bold text-slate-900 mt-2">{stat.value}</p>
@@ -471,23 +538,29 @@ const ContactsView = () => {
       <div className="bg-white rounded-lg border border-slate-200 p-6">
         <h3 className="text-lg font-semibold text-slate-900 mb-4">User Queries</h3>
         <div className="space-y-3">
-          {[...Array(6)].map((_, idx) => (
+          {contacts.map((contact, idx) => (
             <div key={idx} className="p-4 rounded-lg border border-slate-200 hover:shadow-sm transition-shadow">
               <div className="flex items-start justify-between mb-2">
                 <div className="flex-1">
-                  <p className="font-medium text-slate-900">Query #{1001 + idx}</p>
-                  <p className="text-sm text-slate-600 mt-1">Subject: Issue with subscription billing</p>
+                  <p className="font-medium text-slate-900">{contact.name || 'Unknown User'}</p>
+                  <p className="text-sm text-slate-600 mt-1">Email: {contact.email || 'N/A'}</p>
+                  <p className="text-sm text-slate-600">Subject: {contact.subject || 'N/A'}</p>
                 </div>
-                <span className={`text-xs font-semibold px-3 py-1 rounded-full ${
-                  idx % 2 === 0 ? "bg-yellow-100 text-yellow-700" : "bg-green-100 text-green-700"
+                <span className={`text-xs font-semibold px-3 py-1 rounded-full whitespace-nowrap ml-2 ${
+                  contact.status === 'resolved' ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
                 }`}>
-                  {idx % 2 === 0 ? "Pending" : "Resolved"}
+                  {contact.status === 'resolved' ? "Resolved" : "Pending"}
                 </span>
               </div>
-              <p className="text-sm text-slate-600">Customer is experiencing issues with their subscription renewal...</p>
-              <p className="text-xs text-slate-500 mt-3">{1 + idx} day ago</p>
+              {contact.message && (
+                <p className="text-sm text-slate-600 mt-2 line-clamp-2">{contact.message}</p>
+              )}
+              <p className="text-xs text-slate-500 mt-3">{contact.createdAt ? new Date(contact.createdAt).toLocaleDateString() : 'Recently'}</p>
             </div>
           ))}
+          {contacts.length === 0 && (
+            <div className="text-center py-8 text-slate-500">No contact queries found</div>
+          )}
         </div>
       </div>
     </div>

@@ -18,11 +18,17 @@ from alembic import command
 # Create config
 cfg = Config("alembic.ini")
 
-# Set the sqlalchemy.url from environment
+# Set the sqlalchemy.url from environment, but convert async to sync for migrations
 from app.config import settings
-cfg.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+database_url = settings.DATABASE_URL
+
+# Convert async postgresql+asyncpg:// to sync postgresql:// for Alembic
+if "postgresql+asyncpg://" in database_url:
+    database_url = database_url.replace("postgresql+asyncpg://", "postgresql://")
+
+cfg.set_main_option("sqlalchemy.url", database_url)
 
 # Run upgrade
-print(f"Applying migrations to: {settings.DATABASE_URL}")
+print(f"Applying migrations to: {database_url}")
 command.upgrade(cfg, "head")
 print("✅ Migrations applied successfully!")

@@ -81,4 +81,4 @@ class ProductReview(Base):
     source = Column(String, default='Unknown')
 
     # Relationships
-    product = relationship('Product')
+    product = relationship('Product', back_populates='product_reviews', overlaps='product_reviews')

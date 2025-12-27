@@ -27,13 +27,18 @@ class SearchLimitService:
         session_id: Optional[str] = None
     ) -> tuple[bool, int, str]:
         """
-        Check if user has search access.
+        Check if user has search access based on subscription plan and daily limits.
+        
+        Logic:
+        - Premium/Trial users: Unlimited searches
+        - Free registered users (with user_id): 3 searches per day
+        - Guest users (session_id only): 1 search total
         
         Returns:
             tuple: (has_access, remaining_searches, message)
         """
         try:
-            # Check if user has active premium/trial subscription
+            # Priority 1: Check if user has active premium/trial subscription
             if user_id:
                 result = await db.execute(
                     select(Subscription).where(
@@ -45,14 +50,14 @@ class SearchLimitService:
                 subscription = result.scalar_one_or_none()
                 
                 if subscription:
-                    return True, -1, "Unlimited searches (Premium/Trial)"
+                    logger.info(f"User {user_id} has {subscription.plan_type} subscription - unlimited searches")
+                    return True, -1, f"Unlimited searches ({subscription.plan_type.title()})"
 
-            # Get today's date
-            today = date.today()
-
-            # For registered users (with user_id)
+            # Priority 2: Registered user with user_id (free plan)
             if user_id:
-                # Check daily usage
+                today = date.today()
+                
+                # Check daily usage for THIS REGISTERED USER
                 result = await db.execute(
                     select(DailySearchUsage).where(
                         DailySearchUsage.user_id == user_id,
@@ -61,18 +66,19 @@ class SearchLimitService:
                 )
                 usage = result.scalar_one_or_none()
 
-                if usage:
-                    remaining = FREE_REGISTERED_USER_DAILY_LIMIT - usage.search_count
-                    if remaining > 0:
-                        return True, remaining, f"{remaining} searches remaining today"
-                    else:
-                        return False, 0, "Daily search limit reached (3/3). Upgrade to Premium for unlimited searches."
+                if usage and usage.search_count >= FREE_REGISTERED_USER_DAILY_LIMIT:
+                    logger.info(f"User {user_id} reached daily limit ({usage.search_count}/{FREE_REGISTERED_USER_DAILY_LIMIT})")
+                    return False, 0, "Daily search limit reached (3/3). Upgrade to Premium for unlimited searches."
                 else:
-                    # No usage record yet, user has full limit
-                    return True, FREE_REGISTERED_USER_DAILY_LIMIT, f"{FREE_REGISTERED_USER_DAILY_LIMIT} searches available today"
+                    remaining = FREE_REGISTERED_USER_DAILY_LIMIT - (usage.search_count if usage else 0)
+                    logger.info(f"User {user_id} has {remaining} searches remaining today")
+                    return True, remaining, f"{remaining} searches remaining today"
 
-            # For guest users (with session_id)
-            elif session_id:
+            # Priority 3: Guest user with session_id (no account)
+            if session_id:
+                today = date.today()
+                
+                # Check if guest has already used their 1 free search
                 result = await db.execute(
                     select(DailySearchUsage).where(
                         DailySearchUsage.session_id == session_id,
@@ -81,19 +87,16 @@ class SearchLimitService:
                 )
                 usage = result.scalar_one_or_none()
 
-                if usage:
-                    remaining = GUEST_USER_SEARCH_LIMIT - usage.search_count
-                    if remaining > 0:
-                        return True, remaining, "1 free search for guest users"
-                    else:
-                        return False, 0, "Search limit reached. Sign up for 3 free searches daily!"
+                if usage and usage.search_count >= GUEST_USER_SEARCH_LIMIT:
+                    logger.info(f"Guest {session_id} reached limit ({usage.search_count}/{GUEST_USER_SEARCH_LIMIT})")
+                    return False, 0, "Search limit reached. Sign up for 3 free searches daily!"
                 else:
-                    # No usage record yet
-                    return True, GUEST_USER_SEARCH_LIMIT, "1 free search for guest users"
+                    remaining = GUEST_USER_SEARCH_LIMIT - (usage.search_count if usage else 0)
+                    logger.info(f"Guest {session_id} has {remaining} search(es) remaining")
+                    return True, remaining, "1 free search for guest users"
 
-            # No user_id or session_id provided - allow 1 free search for first-time guests
-            # This handles cases where frontend hasn't generated a session ID yet
-            logger.info("No user_id or session_id provided - allowing 1 free search for guest")
+            # No user_id or session_id - should not happen, but allow 1 free search
+            logger.warning("No user_id or session_id provided - allowing 1 free search")
             return True, GUEST_USER_SEARCH_LIMIT, "1 free search for guest users"
 
         except Exception as e:

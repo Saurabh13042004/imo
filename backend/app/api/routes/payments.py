@@ -1,13 +1,16 @@
 """Payment and subscription routes."""
 import logging
-from typing import Optional
+from typing import Optional, List
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, desc
 
 from app.api.dependencies import get_db, get_current_user
 from app.services.stripe_service import StripeService
 from app.models.user import Profile
+from app.models.subscription import PaymentTransaction
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +41,25 @@ class SubscriptionResponse(BaseModel):
     trial_end: Optional[str]
     is_trial: bool
     days_remaining: int
+
+
+class PaymentTransactionResponse(BaseModel):
+    """Payment transaction response."""
+    id: str
+    user_id: str
+    subscription_id: Optional[str]
+    transaction_id: str
+    amount: str
+    currency: str
+    type: str  # subscription, one_time, refund
+    status: str  # pending, success, failed, refunded
+    stripe_payment_intent_id: Optional[str]
+    stripe_session_id: Optional[str]
+    created_at: str
+    updated_at: str
+
+    class Config:
+        from_attributes = True
 
 
 @router.post("/create-checkout-session")
@@ -176,6 +198,175 @@ async def create_portal_session(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@router.get("/transactions")
+async def get_payment_transactions(
+    current_user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> List[PaymentTransactionResponse]:
+    """Get all payment transactions for the current user."""
+    try:
+        stmt = (
+            select(PaymentTransaction)
+            .where(PaymentTransaction.user_id == current_user.id)
+            .order_by(desc(PaymentTransaction.created_at))
+        )
+        result = await db.execute(stmt)
+        transactions = result.scalars().all()
+        
+        return [
+            PaymentTransactionResponse(
+                id=str(t.id),
+                user_id=str(t.user_id),
+                subscription_id=str(t.subscription_id) if t.subscription_id else None,
+                transaction_id=t.transaction_id,
+                amount=str(t.amount),
+                currency=t.currency,
+                type=t.type,
+                status=t.status,
+                stripe_payment_intent_id=t.stripe_payment_intent_id,
+                stripe_session_id=t.stripe_session_id,
+                created_at=t.created_at.isoformat() if t.created_at else None,
+                updated_at=t.updated_at.isoformat() if t.updated_at else None,
+            )
+            for t in transactions
+        ]
+    except Exception as e:
+        logger.error(f"Error fetching payment transactions: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch transactions")
+
+
+@router.get("/transactions/{transaction_id}")
+async def get_payment_transaction(
+    transaction_id: str,
+    current_user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PaymentTransactionResponse:
+    """Get a specific payment transaction by ID."""
+    try:
+        stmt = (
+            select(PaymentTransaction)
+            .where(
+                (PaymentTransaction.id == transaction_id) &
+                (PaymentTransaction.user_id == current_user.id)
+            )
+        )
+        result = await db.execute(stmt)
+        transaction = result.scalar_one_or_none()
+        
+        if not transaction:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+        
+        return PaymentTransactionResponse(
+            id=str(transaction.id),
+            user_id=str(transaction.user_id),
+            subscription_id=str(transaction.subscription_id) if transaction.subscription_id else None,
+            transaction_id=transaction.transaction_id,
+            amount=str(transaction.amount),
+            currency=transaction.currency,
+            type=transaction.type,
+            status=transaction.status,
+            stripe_payment_intent_id=transaction.stripe_payment_intent_id,
+            stripe_session_id=transaction.stripe_session_id,
+            created_at=transaction.created_at.isoformat() if transaction.created_at else None,
+            updated_at=transaction.updated_at.isoformat() if transaction.updated_at else None,
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching payment transaction: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch transaction")
+
+
+@router.get("/transaction-status")
+async def check_transaction_status(
+    payment_intent_id: Optional[str] = None,
+    session_id: Optional[str] = None,
+    current_user: Profile = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Check real-time status of a payment transaction from Stripe.
+    
+    Useful for monitoring payment processing status.
+    """
+    try:
+        if not payment_intent_id and not session_id:
+            raise HTTPException(
+                status_code=400,
+                detail="Either payment_intent_id or session_id required"
+            )
+        
+        # Get transaction details from Stripe
+        details = await StripeService.get_transaction_details(
+            payment_intent_id=payment_intent_id,
+            session_id=session_id,
+        )
+        
+        if not details:
+            raise HTTPException(status_code=404, detail="Transaction not found in Stripe")
+        
+        # Update local transaction record if it exists
+        if payment_intent_id:
+            stmt = select(PaymentTransaction).where(
+                (PaymentTransaction.stripe_payment_intent_id == payment_intent_id) &
+                (PaymentTransaction.user_id == current_user.id)
+            )
+        else:
+            stmt = select(PaymentTransaction).where(
+                (PaymentTransaction.stripe_session_id == session_id) &
+                (PaymentTransaction.user_id == current_user.id)
+            )
+        
+        result = await db.execute(stmt)
+        local_transaction = result.scalar_one_or_none()
+        
+        # Map Stripe status to our status
+        status_mapping = {
+            'paid': 'success',
+            'unpaid': 'pending',
+            'no_payment_required': 'success',
+            'succeeded': 'success',
+            'processing': 'pending',
+            'requires_action': 'pending',
+            'requires_payment_method': 'failed',
+            'canceled': 'failed',
+        }
+        
+        mapped_status = status_mapping.get(details.get('status'), 'pending')
+        
+        # Update local record if status changed
+        if local_transaction and local_transaction.status != mapped_status:
+            local_transaction.status = mapped_status
+            await db.commit()
+        
+        return {
+            'status': mapped_status,
+            'stripe_status': details.get('status'),
+            'amount': details.get('amount'),
+            'currency': details.get('currency'),
+            'created': details.get('created').isoformat() if details.get('created') else None,
+            'error': details.get('last_payment_error'),
+            'local_transaction': PaymentTransactionResponse(
+                id=str(local_transaction.id) if local_transaction else None,
+                user_id=str(local_transaction.user_id) if local_transaction else str(current_user.id),
+                subscription_id=str(local_transaction.subscription_id) if local_transaction and local_transaction.subscription_id else None,
+                transaction_id=local_transaction.transaction_id if local_transaction else (payment_intent_id or session_id),
+                amount=str(local_transaction.amount) if local_transaction else str(details.get('amount', 0)),
+                currency=local_transaction.currency if local_transaction else details.get('currency', 'USD'),
+                type=local_transaction.type if local_transaction else 'subscription',
+                status=local_transaction.status if local_transaction else mapped_status,
+                stripe_payment_intent_id=local_transaction.stripe_payment_intent_id if local_transaction else payment_intent_id,
+                stripe_session_id=local_transaction.stripe_session_id if local_transaction else session_id,
+                created_at=local_transaction.created_at.isoformat() if local_transaction and local_transaction.created_at else None,
+                updated_at=local_transaction.updated_at.isoformat() if local_transaction and local_transaction.updated_at else None,
+            ) if local_transaction else None,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error checking transaction status: {e}")
+        raise HTTPException(status_code=500, detail="Failed to check transaction status")
+
+
 @router.post("/webhook")
 async def stripe_webhook(
     request: Request,
@@ -196,15 +387,76 @@ async def stripe_webhook(
 
         # Handle specific events
         if event['type'] == 'checkout.session.completed':
-            session = event['data']['object']
-            user_id = session['metadata'].get('user_id')
-            session_id = session['id']
+            session_obj = event['data']['object']
+            user_id = session_obj['metadata'].get('user_id')
+            session_id = session_obj['id']
 
             await StripeService.handle_checkout_complete(
                 session_id=session_id,
                 user_id=user_id,
                 session=db,
             )
+
+        elif event['type'] == 'checkout.session.expired':
+            # Track failed/expired checkout sessions
+            session_obj = event['data']['object']
+            user_id = session_obj['metadata'].get('user_id')
+            session_id = session_obj['id']
+            
+            await StripeService.create_or_update_payment_transaction(
+                user_id=user_id,
+                subscription_id=None,
+                transaction_id=session_id,
+                amount=0,
+                currency='usd',
+                txn_type='subscription',
+                status='failed',
+                stripe_session_id=session_id,
+                db_session=db,
+            )
+            await db.commit()
+
+        elif event['type'] == 'charge.failed':
+            # Payment charge failed
+            charge = event['data']['object']
+            user_id = charge['metadata'].get('user_id')
+            transaction_id = charge['id']
+            amount = charge['amount'] / 100  # Convert from cents
+            
+            if user_id:
+                await StripeService.create_or_update_payment_transaction(
+                    user_id=user_id,
+                    subscription_id=charge['metadata'].get('subscription_id'),
+                    transaction_id=transaction_id,
+                    amount=amount,
+                    currency=charge['currency'].upper(),
+                    txn_type='subscription',
+                    status='failed',
+                    stripe_payment_intent_id=charge.get('payment_intent'),
+                    db_session=db,
+                )
+                await db.commit()
+
+        elif event['type'] == 'charge.refunded':
+            # Payment refunded
+            charge = event['data']['object']
+            user_id = charge['metadata'].get('user_id')
+            transaction_id = charge['id']
+            amount = (charge['amount_refunded'] or charge['amount']) / 100
+            
+            if user_id:
+                await StripeService.create_or_update_payment_transaction(
+                    user_id=user_id,
+                    subscription_id=charge['metadata'].get('subscription_id'),
+                    transaction_id=transaction_id,
+                    amount=amount,
+                    currency=charge['currency'].upper(),
+                    txn_type='refund',
+                    status='refunded',
+                    stripe_payment_intent_id=charge.get('payment_intent'),
+                    db_session=db,
+                )
+                await db.commit()
 
         elif event['type'] == 'customer.subscription.updated':
             subscription = event['data']['object']

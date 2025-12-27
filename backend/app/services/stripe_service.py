@@ -27,6 +27,45 @@ class StripeService:
     """Service for managing Stripe payments and subscriptions."""
 
     @staticmethod
+    async def get_transaction_details(
+        payment_intent_id: Optional[str] = None,
+        session_id: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Fetch transaction details from Stripe.
+        
+        Returns transaction status, amount, and other details.
+        """
+        try:
+            if not stripe.api_key:
+                logger.warning("Stripe not configured")
+                return None
+            
+            if payment_intent_id:
+                intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+                return {
+                    'id': intent.id,
+                    'status': intent.status,  # 'succeeded', 'processing', 'requires_action', 'requires_payment_method', 'canceled'
+                    'amount': intent.amount / 100,
+                    'currency': intent.currency.upper(),
+                    'created': datetime.fromtimestamp(intent.created, tz=timezone.utc),
+                    'last_payment_error': intent.last_payment_error,
+                }
+            elif session_id:
+                checkout_session = stripe.checkout.Session.retrieve(session_id)
+                return {
+                    'id': checkout_session.id,
+                    'status': checkout_session.payment_status,  # 'paid', 'unpaid', 'no_payment_required'
+                    'amount': checkout_session.amount_total / 100 if checkout_session.amount_total else 0,
+                    'currency': checkout_session.currency.upper(),
+                    'created': datetime.fromtimestamp(checkout_session.created, tz=timezone.utc),
+                    'payment_intent_id': checkout_session.payment_intent,
+                }
+            return None
+        except Exception as e:
+            logger.error(f"Error fetching transaction details: {e}")
+            return None
+
+    @staticmethod
     async def create_checkout_session(
         user_id: str,
         email: str,
@@ -128,6 +167,69 @@ class StripeService:
         except stripe.error.StripeError as e:
             logger.error(f"Stripe error creating checkout session: {e}")
             raise Exception(f"Payment setup failed: {str(e)}")
+
+    @staticmethod
+    async def create_or_update_payment_transaction(
+        user_id: str,
+        subscription_id: Optional[str],
+        transaction_id: str,
+        amount: Decimal,
+        currency: str,
+        txn_type: str,
+        status: str,
+        stripe_payment_intent_id: Optional[str] = None,
+        stripe_session_id: Optional[str] = None,
+        metadata_json: Optional[str] = None,
+        db_session: Optional[AsyncSession] = None,
+    ) -> PaymentTransaction:
+        """Create or update a payment transaction record. 
+        
+        Transaction lifecycle:
+        - 'pending': When checkout session is created
+        - 'success': When payment is successfully completed
+        - 'failed': When payment fails
+        - 'refunded': When refund is issued
+        """
+        try:
+            if not db_session:
+                raise ValueError("Database session required")
+            
+            # Check if transaction already exists
+            result = await db_session.execute(
+                select(PaymentTransaction).where(
+                    PaymentTransaction.transaction_id == transaction_id
+                )
+            )
+            existing_transaction = result.scalar_one_or_none()
+            
+            if existing_transaction:
+                # Update existing transaction status
+                existing_transaction.status = status
+                existing_transaction.updated_at = datetime.now(timezone.utc)
+                logger.info(f"Updated payment transaction {transaction_id} status to {status}")
+                await db_session.flush()
+                return existing_transaction
+            else:
+                # Create new transaction
+                transaction = PaymentTransaction(
+                    user_id=user_id,
+                    subscription_id=subscription_id,
+                    transaction_id=transaction_id,
+                    amount=amount,
+                    currency=currency,
+                    type=txn_type,
+                    status=status,
+                    stripe_payment_intent_id=stripe_payment_intent_id,
+                    stripe_session_id=stripe_session_id,
+                    metadata_json=metadata_json,
+                )
+                db_session.add(transaction)
+                logger.info(f"Created new payment transaction {transaction_id} with status {status}")
+                await db_session.flush()
+                return transaction
+        except Exception as e:
+            logger.error(f"Error creating/updating payment transaction: {e}")
+            raise
 
     @staticmethod
     async def handle_checkout_complete(
@@ -268,30 +370,20 @@ class StripeService:
 
             # Record payment transaction (idempotent - check if already exists)
             transaction_id = checkout_session.payment_intent or checkout_session.id
-            result = await session.execute(
-                select(PaymentTransaction).where(
-                    PaymentTransaction.transaction_id == transaction_id
-                )
-            )
-            existing_transaction = result.scalar_one_or_none()
+            amount = Decimal(checkout_session.amount_total or 0) / 100  # Convert from cents
             
-            if not existing_transaction:
-                amount = Decimal(checkout_session.amount_total or 0) / 100  # Convert from cents
-                transaction = PaymentTransaction(
-                    user_id=user_id,
-                    subscription_id=subscription.id,
-                    transaction_id=transaction_id,
-                    amount=amount,
-                    currency=checkout_session.currency or 'usd',
-                    type='subscription',
-                    status='success',
-                    stripe_payment_intent_id=checkout_session.payment_intent,
-                    stripe_session_id=session_id,
-                )
-                session.add(transaction)
-                logger.info(f"Created new payment transaction {transaction_id}")
-            else:
-                logger.info(f"Payment transaction {transaction_id} already exists, skipping")
+            await StripeService.create_or_update_payment_transaction(
+                user_id=user_id,
+                subscription_id=subscription.id,
+                transaction_id=transaction_id,
+                amount=amount,
+                currency=checkout_session.currency or 'usd',
+                txn_type='subscription',
+                status='success',
+                stripe_payment_intent_id=checkout_session.payment_intent,
+                stripe_session_id=session_id,
+                db_session=session,
+            )
 
             await session.commit()
             logger.info(f"Successfully processed checkout for user {user_id}, plan: {plan_type}")

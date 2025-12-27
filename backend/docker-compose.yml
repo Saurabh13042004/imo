@@ -30,6 +30,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       DEBUG: "False"
       LOG_LEVEL: INFO
+      DOCKER_HOST: unix:///var/run/docker.sock
     ports:
       - "8000:8000"
     volumes:

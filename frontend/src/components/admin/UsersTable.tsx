@@ -19,87 +19,69 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Search, Filter, ChevronUp, ChevronDown } from "lucide-react";
-
-const mockUsers = [
-  {
-    id: "1",
-    email: "john@example.com",
-    name: "John Doe",
-    subscriptionTier: "premium",
-    joinDate: "2024-01-15",
-    lastActive: "2024-12-24",
-    searches: 450,
-  },
-  {
-    id: "2",
-    email: "sarah@example.com",
-    name: "Sarah Smith",
-    subscriptionTier: "trial",
-    joinDate: "2024-12-20",
-    lastActive: "2024-12-24",
-    searches: 25,
-  },
-  {
-    id: "3",
-    email: "mike@example.com",
-    name: "Mike Johnson",
-    subscriptionTier: "free",
-    joinDate: "2024-12-01",
-    lastActive: "2024-12-23",
-    searches: 8,
-  },
-  {
-    id: "4",
-    email: "jane@example.com",
-    name: "Jane Wilson",
-    subscriptionTier: "premium",
-    joinDate: "2024-06-10",
-    lastActive: "2024-12-24",
-    searches: 1200,
-  },
-  {
-    id: "5",
-    email: "alex@example.com",
-    name: "Alex Brown",
-    subscriptionTier: "free",
-    joinDate: "2024-12-18",
-    lastActive: "2024-12-20",
-    searches: 3,
-  },
-];
+import { Search, Filter, ChevronUp, ChevronDown, Loader2, Edit2, Trash2, Plus } from "lucide-react";
+import { useAdminUsers } from "@/hooks/useAdminApi";
+import { useCreateUser, useUpdateUser, useDeleteUser, type UserInput } from "@/hooks/useAdminCrud";
+import { UserEditModal } from "./modals/UserEditModal";
 
 export const UsersTable = () => {
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
-  const [sortBy, setSortBy] = useState<"name" | "date" | "searches">("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [page, setPage] = useState(0);
+  const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
 
-  const filteredUsers = mockUsers
-    .filter((user) => {
-      if (filter !== "all" && user.subscriptionTier !== filter) return false;
-      if (!search) return true;
-      return (
-        user.email.toLowerCase().includes(search.toLowerCase()) ||
-        user.name.toLowerCase().includes(search.toLowerCase())
-      );
-    })
-    .sort((a, b) => {
-      let comparison = 0;
-      switch (sortBy) {
-        case "name":
-          comparison = a.name.localeCompare(b.name);
-          break;
-        case "date":
-          comparison =
-            new Date(a.joinDate).getTime() - new Date(b.joinDate).getTime();
-          break;
-        case "searches":
-          comparison = a.searches - b.searches;
-          break;
-      }
-      return sortOrder === "asc" ? comparison : -comparison;
-    });
+  const { data: userData, isLoading } = useAdminUsers(page * 50, 50, search || undefined, filter !== "all" ? filter : undefined);
+
+  const createUserMutation = useCreateUser();
+  const updateUserMutation = useUpdateUser();
+  const deleteUserMutation = useDeleteUser();
+
+  const handleCreate = async (data: UserInput) => {
+    try {
+      await createUserMutation.mutateAsync(data);
+      setIsCreateModalOpen(false);
+    } catch (error) {
+      console.error("Failed to create user:", error);
+    }
+  };
+
+  const handleUpdate = async (data: UserInput) => {
+    if (!editingUser) return;
+    try {
+      await updateUserMutation.mutateAsync({
+        userId: editingUser.id,
+        data,
+      });
+      setEditingUser(null);
+    } catch (error) {
+      console.error("Failed to update user:", error);
+    }
+  };
+
+  const handleDelete = async (userId: string) => {
+    if (!confirm("Are you sure you want to delete this user?")) return;
+    try {
+      console.log("[UsersTable] Deleting user:", userId);
+      await deleteUserMutation.mutateAsync(userId);
+      console.log("[UsersTable] User deleted successfully");
+    } catch (error: any) {
+      console.error("[UsersTable] Failed to delete user:", {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status,
+        headers: error?.response?.headers,
+        fullError: error,
+      });
+    }
+  };
+
+  if (isLoading) {
+    return <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin mx-auto" /></div>;
+  }
+
+  const users = userData?.data || [];
 
   const getTierBadgeStyles = (tier: string) => {
     switch (tier) {
@@ -114,6 +96,18 @@ export const UsersTable = () => {
 
   return (
     <div className="space-y-6">
+      {/* Header with Create Button */}
+      <div className="flex justify-between items-center">
+        <h2 className="text-2xl font-bold text-slate-900">Users</h2>
+        <Button
+          onClick={() => setIsCreateModalOpen(true)}
+          className="bg-blue-600 hover:bg-blue-700 text-white"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          Create User
+        </Button>
+      </div>
+
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
@@ -121,11 +115,17 @@ export const UsersTable = () => {
           <Input
             placeholder="Search by name or email..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(0);
+            }}
             className="pl-10 bg-white border-slate-200 text-slate-900 placeholder:text-slate-500"
           />
         </div>
-        <Select value={filter} onValueChange={setFilter}>
+        <Select value={filter} onValueChange={(val) => {
+          setFilter(val);
+          setPage(0);
+        }}>
           <SelectTrigger className="w-full sm:w-40 bg-white border-slate-200 text-slate-900">
             <Filter className="w-4 h-4 mr-2" />
             <SelectValue />
@@ -147,46 +147,14 @@ export const UsersTable = () => {
               <TableRow className="border-slate-200 hover:bg-transparent">
                 <TableHead className="text-slate-900">User</TableHead>
                 <TableHead className="text-slate-900">Tier</TableHead>
-                <TableHead
-                  className="text-slate-900 cursor-pointer hover:text-slate-700"
-                  onClick={() => {
-                    setSortBy("date");
-                    setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    Join Date
-                    {sortBy === "date" &&
-                      (sortOrder === "asc" ? (
-                        <ChevronUp className="w-4 h-4" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4" />
-                      ))}
-                  </div>
-                </TableHead>
+                <TableHead className="text-slate-900">Join Date</TableHead>
                 <TableHead className="text-slate-900">Last Active</TableHead>
-                <TableHead
-                  className="text-slate-900 cursor-pointer hover:text-slate-700"
-                  onClick={() => {
-                    setSortBy("searches");
-                    setSortOrder(sortOrder === "asc" ? "desc" : "asc");
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    Searches
-                    {sortBy === "searches" &&
-                      (sortOrder === "asc" ? (
-                        <ChevronUp className="w-4 h-4" />
-                      ) : (
-                        <ChevronDown className="w-4 h-4" />
-                      ))}
-                  </div>
-                </TableHead>
+                <TableHead className="text-slate-900">Status</TableHead>
                 <TableHead className="text-slate-900">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredUsers.map((user, idx) => (
+              {users.map((user, idx) => (
                 <motion.tr
                   key={user.id}
                   initial={{ opacity: 0 }}
@@ -196,48 +164,49 @@ export const UsersTable = () => {
                 >
                   <TableCell className="font-medium">
                     <div>
-                      <p className="text-slate-900">{user.name}</p>
+                      <p className="text-slate-900">{user.name || user.email}</p>
                       <p className="text-xs text-slate-600">{user.email}</p>
                     </div>
                   </TableCell>
                   <TableCell>
                     <Badge
                       variant="outline"
-                      className={getTierBadgeStyles(user.subscriptionTier)}
+                      className={getTierBadgeStyles(user.subscriptionTier || 'free')}
                     >
-                      {user.subscriptionTier.charAt(0).toUpperCase() +
-                        user.subscriptionTier.slice(1)}
+                      {(user.subscriptionTier || 'free').charAt(0).toUpperCase() + (user.subscriptionTier || 'free').slice(1)}
                     </Badge>
                   </TableCell>
                   <TableCell className="text-slate-600">
-                    {new Date(user.joinDate).toLocaleDateString()}
+                    {user.joinDate ? new Date(user.joinDate).toLocaleDateString() : 'N/A'}
                   </TableCell>
                   <TableCell className="text-slate-600">
-                    {new Date(user.lastActive).toLocaleDateString()}
+                    {user.lastActive ? new Date(user.lastActive).toLocaleDateString() : 'N/A'}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      <div className="w-12 h-6 bg-slate-200 rounded-full overflow-hidden">
-                        <motion.div
-                          className="h-full bg-gradient-to-r from-blue-500 to-cyan-500"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${Math.min((user.searches / 1000) * 100, 100)}%` }}
-                          transition={{ duration: 0.8 }}
-                        />
-                      </div>
-                      <span className="text-slate-900 font-semibold">
-                        {user.searches}
-                      </span>
+                    <Badge variant="outline" className="bg-green-100 border-green-300 text-green-700">
+                      Active
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setEditingUser(user)}
+                        className="border-slate-300 hover:bg-slate-100 text-slate-900"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleDelete(user.id)}
+                        disabled={deleteUserMutation.isPending}
+                        className="border-red-300 hover:bg-red-100 text-red-600"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="border-slate-300 hover:bg-slate-100 text-slate-900"
-                    >
-                      View
-                    </Button>
                   </TableCell>
                 </motion.tr>
               ))}
@@ -249,18 +218,9 @@ export const UsersTable = () => {
       {/* Summary */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { label: "Total Users Shown", value: filteredUsers.length },
-          {
-            label: "Total Searches",
-            value: filteredUsers.reduce((sum, u) => sum + u.searches, 0),
-          },
-          {
-            label: "Avg Searches/User",
-            value: Math.round(
-              filteredUsers.reduce((sum, u) => sum + u.searches, 0) /
-                filteredUsers.length
-            ),
-          },
+          { label: "Total Users Shown", value: users.length },
+          { label: "Total Users in DB", value: userData?.total || 0 },
+          { label: "Current Page", value: page + 1 },
         ].map((stat, idx) => (
           <Card
             key={idx}
@@ -271,6 +231,53 @@ export const UsersTable = () => {
           </Card>
         ))}
       </div>
+
+      {/* Pagination */}
+      <div className="flex gap-2 justify-center">
+        <Button
+          onClick={() => setPage(Math.max(0, page - 1))}
+          disabled={page === 0}
+          variant="outline"
+        >
+          Previous
+        </Button>
+        <span className="px-4 py-2 text-slate-900">Page {page + 1}</span>
+        <Button
+          onClick={() => setPage(page + 1)}
+          disabled={(page + 1) * 50 >= (userData?.total || 0)}
+          variant="outline"
+        >
+          Next
+        </Button>
+      </div>
+
+      {/* Modals */}
+      {isCreateModalOpen && (
+        <UserEditModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onSubmit={handleCreate}
+          isLoading={createUserMutation.isPending}
+          title="Create User"
+        />
+      )}
+
+      {editingUser && (
+        <UserEditModal
+          isOpen={!!editingUser}
+          onClose={() => setEditingUser(null)}
+          onSubmit={handleUpdate}
+          initialData={{
+            full_name: editingUser.name,
+            email: editingUser.email,
+            subscription_tier: editingUser.subscriptionTier,
+            access_level: editingUser.accessLevel,
+            avatar_url: editingUser.avatar_url,
+          }}
+          isLoading={updateUserMutation.isPending}
+          title="Edit User"
+        />
+      )}
     </div>
   );
 };
