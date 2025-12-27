@@ -154,26 +154,8 @@ export const HeroSection = ({ className = '' }: HeroSectionProps) => {
     }
   }, []);
 
-  // Defer analytics loading to after page load (point 5)
-  useEffect(() => {
-    // Load Microsoft Clarity after page load
-    const loadClarity = () => {
-      if ((window as any).clarity) return; // Already loaded
-      const script = document.createElement('script');
-      script.async = true;
-      script.src = 'https://www.clarity.ms/tag/kq6a7vgfeb';
-      (script as any).clarity = true;
-      document.head.appendChild(script);
-    };
-
-    // Defer analytics to after page render
-    if ('requestIdleCallback' in window) {
-      requestIdleCallback(() => loadClarity());
-    } else {
-      const timeoutId = setTimeout(() => loadClarity(), 2000);
-      return () => clearTimeout(timeoutId);
-    }
-  }, []);
+  // Microsoft Clarity is initialized globally in main.tsx using the NPM package
+  // No additional loading needed here
 
   const handleVideoClick = () => {
     if (videoRef.current && !isVideoPlaying) {
