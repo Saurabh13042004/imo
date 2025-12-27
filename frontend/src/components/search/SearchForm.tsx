@@ -14,7 +14,7 @@ export const SearchForm = ({ loading, onSearch }: SearchFormProps) => {
       <div className="text-center mb-12">
         <div className="flex items-center justify-center mb-6">
           <div className="bg-gradient-primary p-3 rounded-2xl shadow-lg">
-            <SearchIcon className="h-8 w-8 text-white" />
+            <Search className="h-8 w-8 text-white" />
           </div>
         </div>
         <h1 className="text-4xl md:text-5xl font-bold tracking-tight mb-6">

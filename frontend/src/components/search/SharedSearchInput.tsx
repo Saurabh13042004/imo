@@ -146,7 +146,7 @@ export const SharedSearchInput = ({
           loading={loading}
         >
           <div className="relative flex-1 h-full cursor-text" onClick={handleContainerClick}>
-            <SearchIcon className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground pointer-events-none" />
             <Input
               ref={inputRef}
               placeholder={getSearchPlaceholder()}
@@ -186,7 +186,7 @@ export const SharedSearchInput = ({
               </>
             ) : (
               <>
-                {variant === 'compact' ? <SearchIcon className="h-4 w-4" /> : 'Search'}
+                {variant === 'compact' ? <Search className="h-4 w-4" /> : 'Search'}
                 {variant !== 'compact' && <ArrowRight className="h-5 w-5 ml-2" />}
               </>
             )}
