@@ -8,8 +8,9 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useSearchUrl } from '@/hooks/useSearchUrl';
 import { useNavigate } from 'react-router-dom';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
+import React from 'react';
 
 interface HeroSectionProps {
   className?: string;
@@ -40,11 +41,13 @@ const AnimatedOrb = ({
   duration,
   size,
   position,
+  animationsEnabled = false,
 }: {
   delay: number;
   duration: number;
   size: string;
   position: string;
+  animationsEnabled?: boolean;
 }) => (
   <motion.div
     className={`absolute ${size} rounded-full blur-3xl opacity-30`}
@@ -57,33 +60,43 @@ const AnimatedOrb = ({
         })
       ),
     }}
-    animate={{
+    animate={animationsEnabled ? {
       y: [0, 30, 0],
       x: [0, 20, 0],
-    }}
+    } : { y: 0, x: 0 }}
     transition={{
       duration,
-      repeat: Infinity,
+      repeat: animationsEnabled ? Infinity : 0,
       ease: 'easeInOut',
       delay,
     }}
   />
 );
 
+const MemoizedAnimatedOrb = React.memo(AnimatedOrb);
+
 const Counter = ({ 
   from = 0, 
   to, 
   suffix = '', 
-  duration = 2 
+  duration = 2,
+  animationsEnabled = false,
 }: { 
   from?: number; 
   to: number; 
   suffix?: string; 
-  duration?: number 
+  duration?: number;
+  animationsEnabled?: boolean;
 }) => {
   const [count, setCount] = useState(from);
 
   useEffect(() => {
+    if (!animationsEnabled) {
+      // Show final value immediately if animations not enabled
+      setCount(to);
+      return;
+    }
+
     let startTime: number;
     let animationFrame: number;
 
@@ -102,10 +115,12 @@ const Counter = ({
     animationFrame = requestAnimationFrame(animate);
 
     return () => cancelAnimationFrame(animationFrame);
-  }, [from, to, duration]);
+  }, [from, to, duration, animationsEnabled]);
 
   return <>{count}{suffix}</>;
 };
+
+const MemoizedCounter = React.memo(Counter);
 
 export const HeroSection = ({ className = '' }: HeroSectionProps) => {
   const navigate = useNavigate();
@@ -114,11 +129,45 @@ export const HeroSection = ({ className = '' }: HeroSectionProps) => {
   const [searchQuery, setSearchQuery] = useState('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [animationsEnabled, setAnimationsEnabled] = useState(false);
 
   // Lazy load video after component mounts
   useEffect(() => {
     if (videoRef.current) {
       videoRef.current.load();
+    }
+  }, []);
+
+  // Enable animations after first paint to avoid blocking LCP
+  useEffect(() => {
+    if ('requestIdleCallback' in window) {
+      // Use requestIdleCallback for better prioritization
+      requestIdleCallback(() => setAnimationsEnabled(true));
+    } else {
+      // Fallback for browsers without requestIdleCallback
+      const timeoutId = setTimeout(() => setAnimationsEnabled(true), 100);
+      return () => clearTimeout(timeoutId);
+    }
+  }, []);
+
+  // Defer analytics loading to after page load (point 5)
+  useEffect(() => {
+    // Load Microsoft Clarity after page load
+    const loadClarity = () => {
+      if ((window as any).clarity) return; // Already loaded
+      const script = document.createElement('script');
+      script.async = true;
+      script.src = 'https://www.clarity.ms/tag/kq6a7vgfeb';
+      (script as any).clarity = true;
+      document.head.appendChild(script);
+    };
+
+    // Defer analytics to after page render
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => loadClarity());
+    } else {
+      const timeoutId = setTimeout(() => loadClarity(), 2000);
+      return () => clearTimeout(timeoutId);
     }
   }, []);
 
@@ -142,25 +191,28 @@ export const HeroSection = ({ className = '' }: HeroSectionProps) => {
 
   return (
     <div className={`relative w-full overflow-hidden ${className}`}>
-      {/* Animated Background Orbs */}
+      {/* Animated Background Orbs - Deferred */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <AnimatedOrb
+        <MemoizedAnimatedOrb
           delay={0}
           duration={8}
           size="w-96 h-96"
           position="top-20 -left-48"
+          animationsEnabled={animationsEnabled}
         />
-        <AnimatedOrb
+        <MemoizedAnimatedOrb
           delay={2}
           duration={10}
           size="w-80 h-80"
           position="top-40 right-0"
+          animationsEnabled={animationsEnabled}
         />
-        <AnimatedOrb
+        <MemoizedAnimatedOrb
           delay={1}
           duration={12}
           size="w-72 h-72"
           position="bottom-20 left-1/3"
+          animationsEnabled={animationsEnabled}
         />
       </div>
 
@@ -172,7 +224,7 @@ export const HeroSection = ({ className = '' }: HeroSectionProps) => {
         className="md:hidden relative z-10 px-4 py-8 sm:py-12"
         variants={containerVariants}
         initial="hidden"
-        animate="visible"
+        animate={animationsEnabled ? "visible" : "hidden"}
       >
         <motion.div variants={itemVariants} className="text-center mb-8">
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4 text-foreground leading-tight">
@@ -220,8 +272,8 @@ export const HeroSection = ({ className = '' }: HeroSectionProps) => {
           {!user && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
+              animate={animationsEnabled ? { opacity: 1, y: 0 } : { opacity: 1, y: 0 }}
+              transition={{ delay: animationsEnabled ? 0.2 : 0 }}
               className="mt-2 flex items-center justify-center gap-1 text-xs text-muted-foreground"
             >
               <Zap className="w-4 h-4 text-yellow-500" />
@@ -237,25 +289,25 @@ export const HeroSection = ({ className = '' }: HeroSectionProps) => {
         >
           <div className="bg-card/50 rounded-lg p-4 border border-foreground/10 text-center">
             <div className="text-2xl font-bold text-primary mb-1">
-              <Counter to={10} suffix="K+" duration={2} />
+              <MemoizedCounter to={10} suffix="K+" duration={2} animationsEnabled={animationsEnabled} />
             </div>
             <div className="text-xs text-muted-foreground">Reviews</div>
           </div>
           <div className="bg-card/50 rounded-lg p-4 border border-foreground/10 text-center">
             <div className="text-2xl font-bold text-primary mb-1">
-              <Counter to={98} suffix="%" duration={2} />
+              <MemoizedCounter to={98} suffix="%" duration={2} animationsEnabled={animationsEnabled} />
             </div>
             <div className="text-xs text-muted-foreground">Accuracy</div>
           </div>
           <div className="bg-card/50 rounded-lg p-4 border border-foreground/10 text-center">
             <div className="text-2xl font-bold text-primary mb-1">
-              <Counter to={500} suffix="+" duration={2} />
+              <MemoizedCounter to={500} suffix="+" duration={2} animationsEnabled={animationsEnabled} />
             </div>
             <div className="text-xs text-muted-foreground">Videos</div>
           </div>
           <div className="bg-card/50 rounded-lg p-4 border border-foreground/10 text-center">
             <div className="text-2xl font-bold text-primary mb-1">
-              <Counter to={100} suffix="+" duration={2} />
+              <MemoizedCounter to={100} suffix="+" duration={2} animationsEnabled={animationsEnabled} />
             </div>
             <div className="text-xs text-muted-foreground">Retailers</div>
           </div>
@@ -295,7 +347,7 @@ export const HeroSection = ({ className = '' }: HeroSectionProps) => {
         className="hidden md:flex relative z-10 min-h-screen flex-col items-center justify-center px-6 pt-20 pb-12"
         variants={containerVariants}
         initial="hidden"
-        animate="visible"
+        animate={animationsEnabled ? "visible" : "hidden"}
       >
         {/* Main Heading - Professional and Bold */}
         <motion.h1
@@ -351,8 +403,8 @@ export const HeroSection = ({ className = '' }: HeroSectionProps) => {
           {!user && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
+              animate={animationsEnabled ? { opacity: 1, y: 0 } : { opacity: 1, y: 0 }}
+              transition={{ delay: animationsEnabled ? 0.2 : 0 }}
               className="mt-3 flex items-center justify-center gap-2 text-xs text-muted-foreground"
             >
               <Zap className="w-4 h-4 text-yellow-500" />
@@ -369,25 +421,25 @@ export const HeroSection = ({ className = '' }: HeroSectionProps) => {
           <div className="grid grid-cols-4 gap-8 text-center">
             <div>
               <div className="text-3xl font-bold text-primary mb-2">
-                <Counter to={10} suffix="K+" duration={2} />
+                <MemoizedCounter to={10} suffix="K+" duration={2} animationsEnabled={animationsEnabled} />
               </div>
               <div className="text-sm text-muted-foreground">Reviews Analyzed</div>
             </div>
             <div>
               <div className="text-3xl font-bold text-primary mb-2">
-                <Counter to={500} suffix="+" duration={2} />
+                <MemoizedCounter to={500} suffix="+" duration={2} animationsEnabled={animationsEnabled} />
               </div>
               <div className="text-sm text-muted-foreground">Video Sources</div>
             </div>
             <div>
               <div className="text-3xl font-bold text-primary mb-2">
-                <Counter to={98} suffix="%" duration={2} />
+                <MemoizedCounter to={98} suffix="%" duration={2} animationsEnabled={animationsEnabled} />
               </div>
               <div className="text-sm text-muted-foreground">Accuracy</div>
             </div>
             <div>
               <div className="text-3xl font-bold text-primary mb-2">
-                <Counter to={100} suffix="+" duration={2} />
+                <MemoizedCounter to={100} suffix="+" duration={2} animationsEnabled={animationsEnabled} />
               </div>
               <div className="text-sm text-muted-foreground">Retailers</div>
             </div>
@@ -438,8 +490,8 @@ export const HeroSection = ({ className = '' }: HeroSectionProps) => {
         <motion.button
           onClick={scrollToSection}
           className="mt-4"
-          animate={{ y: [0, 10, 0] }}
-          transition={{ duration: 2, repeat: Infinity }}
+          animate={animationsEnabled ? { y: [0, 10, 0] } : { y: 0 }}
+          transition={{ duration: 2, repeat: animationsEnabled ? Infinity : 0 }}
         >
           <ChevronDown className="w-6 h-6 text-muted-foreground hover:text-foreground transition-colors" />
         </motion.button>
