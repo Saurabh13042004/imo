@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
+import { API_BASE_URL } from '@/config/api';
 
 interface Container {
   id: string;
@@ -67,23 +68,6 @@ interface SystemHealth {
   };
 }
 
-async function apiCall<T>(
-  endpoint: string,
-  accessToken: string
-): Promise<T> {
-  const response = await fetch(endpoint, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`API call failed: ${response.statusText}`);
-  }
-
-  return response.json();
-}
-
 // Docker Health Hook
 export function useDockerHealth(enabled = true) {
   const { accessToken } = useAuth();
@@ -91,11 +75,18 @@ export function useDockerHealth(enabled = true) {
   return useQuery({
     queryKey: ['docker-health'],
     queryFn: async () => {
-      if (!accessToken) throw new Error('Not authenticated');
-      return apiCall<DockerHealth>(
-        '/api/v1/admin/health/docker',
-        accessToken
-      );
+      const response = await fetch(`${API_BASE_URL}/api/v1/admin/health/docker`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch docker health');
+      }
+
+      return response.json() as Promise<DockerHealth>;
     },
     refetchInterval: 30000, // Refresh every 30 seconds
     enabled: enabled && !!accessToken,
@@ -109,11 +100,18 @@ export function useCeleryHealth(enabled = true) {
   return useQuery({
     queryKey: ['celery-health'],
     queryFn: async () => {
-      if (!accessToken) throw new Error('Not authenticated');
-      return apiCall<CeleryHealth>(
-        '/api/v1/admin/health/celery',
-        accessToken
-      );
+      const response = await fetch(`${API_BASE_URL}/api/v1/admin/health/celery`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch celery health');
+      }
+
+      return response.json() as Promise<CeleryHealth>;
     },
     refetchInterval: 30000,
     enabled: enabled && !!accessToken,
@@ -127,11 +125,22 @@ export function useCeleryTasks(statusFilter?: string, enabled = true) {
   return useQuery({
     queryKey: ['celery-tasks', statusFilter],
     queryFn: async () => {
-      if (!accessToken) throw new Error('Not authenticated');
       const url = statusFilter
-        ? `/api/v1/admin/health/celery/tasks?status_filter=${statusFilter}`
-        : '/api/v1/admin/health/celery/tasks';
-      return apiCall<CeleryTasks>(url, accessToken);
+        ? `${API_BASE_URL}/api/v1/admin/health/celery/tasks?status_filter=${statusFilter}`
+        : `${API_BASE_URL}/api/v1/admin/health/celery/tasks`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch celery tasks');
+      }
+
+      return response.json() as Promise<CeleryTasks>;
     },
     refetchInterval: 15000, // Refresh every 15 seconds for tasks
     enabled: enabled && !!accessToken,
@@ -145,11 +154,18 @@ export function useSystemHealth(enabled = true) {
   return useQuery({
     queryKey: ['system-health'],
     queryFn: async () => {
-      if (!accessToken) throw new Error('Not authenticated');
-      return apiCall<SystemHealth>(
-        '/api/v1/admin/health/system',
-        accessToken
-      );
+      const response = await fetch(`${API_BASE_URL}/api/v1/admin/health/system`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch system health');
+      }
+
+      return response.json() as Promise<SystemHealth>;
     },
     refetchInterval: 30000,
     enabled: enabled && !!accessToken,

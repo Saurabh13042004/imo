@@ -26,6 +26,7 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { AdminDashboardContent, UsersTable, SubscriptionsTable, TransactionsTable, SubscriptionsView, ServerMonitoring, UrlsTable, EmailTemplateManagement, SendEmail } from "@/components/admin";
+import { AnalyticsDashboardNew } from "@/components/analytics/AnalyticsDashboardNew";
 import { 
   useAdminPaymentTransactions, 
   useAdminErrorLogs, 
@@ -144,7 +145,7 @@ const Admin = () => {
       case "home":
         return <AdminDashboardContent />;
       case "analytics":
-        return <ActivityAnalyticsView />;
+        return <AnalyticsDashboardNew />;
       case "users":
         return <UsersTable />;
       case "transactions":
@@ -240,85 +241,6 @@ const Admin = () => {
         </main>
       </div>
     </SidebarProvider>
-  );
-};
-
-// Analytics View Component
-const ActivityAnalyticsView = () => {
-  const { data: taskData, isLoading: tasksLoading } = useAdminBackgroundTasks(0, 50);
-
-  if (tasksLoading) {
-    return <div className="text-center py-8"><Loader2 className="w-8 h-8 animate-spin mx-auto" /></div>;
-  }
-
-  // Calculate basic stats from tasks
-  const stats = [
-    { label: "Daily Searches", value: "12.4K", change: "+5.2%", icon: "📊" },
-    { label: "Active Users", value: "2,345", change: "+12.1%", icon: "👥" },
-    { label: "Avg. Session", value: "8m 42s", change: "+2.3%", icon: "⏱️" },
-    { label: "User Interactions", value: "45.2K", change: "+8.4%", icon: "🔗" },
-  ];
-
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {stats.map((stat, idx) => (
-          <div key={idx} className="bg-white rounded-lg border border-slate-200 p-6 hover:shadow-lg transition-shadow">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-slate-600 font-medium">{stat.label}</p>
-                <p className="text-2xl font-bold text-slate-900 mt-2">{stat.value}</p>
-                <p className="text-xs text-green-600 font-semibold mt-2">{stat.change}</p>
-              </div>
-              <div className="text-4xl">{stat.icon}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="bg-white rounded-lg border border-slate-200 p-6">
-        <h3 className="text-lg font-semibold text-slate-900 mb-4">Search Trends (Last 7 Days)</h3>
-        <div className="h-80 bg-slate-50 rounded-lg flex items-center justify-center border border-slate-200 border-dashed">
-          <p className="text-slate-500">Chart visualization goes here</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-white rounded-lg border border-slate-200 p-6">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">Top Search Queries</h3>
-          <div className="space-y-3">
-            {["iPhone 15 Pro", "Samsung Galaxy", "MacBook Pro", "iPad Air", "AirPods Pro"].map((query, idx) => (
-              <div key={idx} className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50">
-                <span className="text-slate-700">{query}</span>
-                <span className="text-sm font-semibold text-slate-600">{1200 - idx * 150}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-lg border border-slate-200 p-6">
-          <h3 className="text-lg font-semibold text-slate-900 mb-4">User Engagement</h3>
-          <div className="space-y-4">
-            {[
-              { label: "Page Views", value: 85 },
-              { label: "Avg. Time on Site", value: 72 },
-              { label: "Conversion Rate", value: 58 },
-              { label: "Return Users", value: 91 },
-            ].map((metric, idx) => (
-              <div key={idx}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-slate-700">{metric.label}</span>
-                  <span className="text-sm font-semibold text-slate-900">{metric.value}%</span>
-                </div>
-                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-blue-500 to-cyan-500" style={{ width: `${metric.value}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
   );
 };
 

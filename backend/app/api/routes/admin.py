@@ -81,8 +81,10 @@ async def get_admin_stats(
         )
         active_trials = active_trials_result.scalar() or 0
 
-        # Monthly revenue
+        # Monthly revenue - from successful payment transactions and subscriptions
         month_ago = datetime.utcnow() - timedelta(days=30)
+        
+        # Get successful payment transactions from last 30 days
         revenue_result = await db.execute(
             select(func.sum(PaymentTransaction.amount)).where(
                 and_(
@@ -91,7 +93,22 @@ async def get_admin_stats(
                 )
             )
         )
-        monthly_revenue = float(revenue_result.scalar() or 0)
+        payment_revenue = float(revenue_result.scalar() or 0)
+        
+        # Get active premium subscriptions (assume $9.99/month each)
+        premium_subs_result = await db.execute(
+            select(func.count(Subscription.id)).where(
+                and_(
+                    Subscription.is_active == True,
+                    Subscription.plan_type == "premium"
+                )
+            )
+        )
+        premium_count = premium_subs_result.scalar() or 0
+        subscription_revenue = premium_count * 9.99
+        
+        # Total monthly revenue
+        monthly_revenue = float(payment_revenue + subscription_revenue)
 
         # Total URLs (products)
         total_urls_result = await db.execute(
@@ -663,3 +680,76 @@ async def update_user_subscription(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update user subscription"
         )
+
+
+@router.get("/recent-activities")
+async def get_recent_activities(
+    db: AsyncSession = Depends(get_db),
+    admin: Profile = Depends(admin_required),
+    limit: int = Query(10, ge=1, le=50)
+):
+    """Get recent user activities including transactions, subscriptions, and logins."""
+    try:
+        activities = []
+        
+        # Recent successful payment transactions with user info
+        transactions_result = await db.execute(
+            select(PaymentTransaction, Profile).join(
+                Profile, PaymentTransaction.user_id == Profile.id
+            ).order_by(desc(PaymentTransaction.created_at)).limit(limit)
+        )
+        transactions = transactions_result.all()
+        
+        for txn, user in transactions:
+            status_type = "success" if txn.status == "success" else "warning"
+            activities.append({
+                "event": "Payment Successful" if txn.status == "success" else "Payment Failed",
+                "user": user.email if user else "Unknown",
+                "timestamp": txn.created_at.isoformat() if txn.created_at else None,
+                "type": status_type,
+                "amount": float(txn.amount) if txn.amount else 0,
+            })
+        
+        # Recent subscription changes with user info
+        subs_result = await db.execute(
+            select(Subscription, Profile).join(
+                Profile, Subscription.user_id == Profile.id
+            ).order_by(desc(Subscription.created_at)).limit(limit)
+        )
+        subscriptions = subs_result.all()
+        
+        for sub, user in subscriptions:
+            if sub.plan_type == "premium":
+                event_type = "success"
+                event_name = "New Premium Subscription"
+            elif sub.plan_type == "trial":
+                event_type = "info"
+                event_name = "Trial Started"
+            else:
+                continue
+                
+            activities.append({
+                "event": event_name,
+                "user": user.email if user else "Unknown",
+                "timestamp": sub.created_at.isoformat() if sub.created_at else None,
+                "type": event_type,
+                "planType": sub.plan_type,
+            })
+        
+        # Sort by timestamp descending and return top items
+        activities.sort(
+            key=lambda x: x.get('timestamp', ''),
+            reverse=True
+        )
+        
+        return {
+            "activities": activities[:limit],
+            "total": len(activities),
+        }
+    except Exception as e:
+        logger.error(f"Error fetching recent activities: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch recent activities"
+        )
+
