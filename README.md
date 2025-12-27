@@ -1,4 +1,4 @@
-# IMO - Intelligent Market Optimizer
+# IMO - Informed Market Opinion
 
 A comprehensive **product aggregation and review analysis platform** that searches across multiple marketplaces, aggregates reviews from diverse sources, and uses AI to provide intelligent insights.
 
