@@ -159,10 +159,25 @@ export const AuthForm = ({ mode = 'signin', isRecovery = false }: AuthFormProps)
     setResetLoading(true);
 
     try {
-      toast.success('Check your email for password reset instructions.');
-      setResetEmail('');
+      const response = await fetch(`${API_URL}/api/v1/auth/forgot-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: resetEmail.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success('Check your email for password reset instructions.');
+        setResetEmail('');
+      } else {
+        toast.error(data.detail || 'Failed to send reset link.');
+      }
     } catch (error: any) {
-      toast.error(error?.message || 'Failed to send reset link.');
+      console.error('Password reset error:', error);
+      toast.error('Failed to send reset link. Please try again.');
     } finally {
       setResetLoading(false);
     }
@@ -240,7 +255,11 @@ export const AuthForm = ({ mode = 'signin', isRecovery = false }: AuthFormProps)
                         Remember me
                       </Label>
                     </div>
-                    <button className="text-primary hover:underline text-sm">
+                    <button 
+                      type="button"
+                      onClick={() => setCurrentMode('reset')}
+                      className="text-primary hover:underline text-sm"
+                    >
                       Forgot password?
                     </button>
                   </div>

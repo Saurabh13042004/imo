@@ -36,6 +36,12 @@ TEMPLATES = [
         "subject": "Price Alert Set! 🔔 We'll Monitor {{ product_name }} For You",
         "description": "Sent when user creates a price alert. Includes product, current price, and target price.",
         "file": "imo_price_alert.html"
+    },
+    {
+        "name": "imo_password_reset",
+        "subject": "Reset Your IMO Password",
+        "description": "Sent when user requests password reset. Includes reset link valid for 24 hours.",
+        "file": "imo_password_reset.html"
     }
 ]
 
@@ -177,6 +183,30 @@ Product ID: {{ product_id }}
 
 Questions?
 Contact us at imhollc27@gmail.com or visit https://informedmarketopinions.com/contact
+
+© 2025 IMO. All rights reserved. Made with ❤️ for smart shoppers.
+https://informedmarketopinions.com""",
+    
+    "imo_password_reset": """Reset Your IMO Password
+
+Hi {{ user_name }},
+
+We received a request to reset your password. Click the link below to create a new password.
+
+RESET YOUR PASSWORD:
+{{ reset_link }}
+
+Or copy this link to your browser:
+{{ reset_link }}
+
+IMPORTANT:
+- This link expires in {{ expiration_hours }} hours for security reasons
+- If you didn't request this password reset, please ignore this email
+- Your account remains secure until you reset your password
+- This link can only be used once
+
+NEED HELP?
+If you have trouble resetting your password or didn't request this reset, contact us at imhollc27@gmail.com
 
 © 2025 IMO. All rights reserved. Made with ❤️ for smart shoppers.
 https://informedmarketopinions.com"""

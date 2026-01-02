@@ -23,6 +23,8 @@ class Profile(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
     subscription_tier = Column(String, default='free')
     access_level = Column(String, default='basic')
+    password_reset_token = Column(String, nullable=True)
+    password_reset_token_expires = Column(DateTime(timezone=True), nullable=True)
 
     # Relationships
     subscriptions = relationship('Subscription', back_populates='user')

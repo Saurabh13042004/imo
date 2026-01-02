@@ -80,3 +80,31 @@ class ChangePasswordRequest(BaseModel):
         if not any(c.isdigit() for c in v):
             raise ValueError('Password must contain at least one digit')
         return v
+
+class PasswordResetRequest(BaseModel):
+    """Password reset request schema (for requesting reset)."""
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    """Password reset confirmation schema (for confirming reset with token)."""
+    token: str
+    new_password: str
+
+    @field_validator('new_password')
+    @classmethod
+    def validate_password(cls, v):
+        """Validate password strength."""
+        if len(v) < 8:
+            raise ValueError('Password must be at least 8 characters long')
+        if not any(c.isupper() for c in v):
+            raise ValueError('Password must contain at least one uppercase letter')
+        if not any(c.isdigit() for c in v):
+            raise ValueError('Password must contain at least one digit')
+        return v
+
+
+class PasswordResetResponse(BaseModel):
+    """Password reset response schema."""
+    message: str
+    email: Optional[str] = None

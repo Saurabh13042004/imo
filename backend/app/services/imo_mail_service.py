@@ -282,3 +282,52 @@ class IMOMailService:
         except Exception as e:
             logger.error(f"Error sending price alert email: {e}", exc_info=True)
             return False
+    @staticmethod
+    async def send_password_reset_email(
+        db: AsyncSession,
+        user_email: str,
+        user_name: str,
+        reset_token: str
+    ) -> bool:
+        """
+        Send password reset email to user.
+        
+        Args:
+            db: Database session
+            user_email: User's email address
+            user_name: User's full name
+            reset_token: Password reset token
+            
+        Returns:
+            bool: True if email sent successfully
+        """
+        # Build reset URL - user will click this link to reset password
+        reset_link = f"{settings.FRONTEND_URL}/reset-password?token={reset_token}"
+        
+        context = {
+            "user_name": user_name,
+            "user_email": user_email,
+            "reset_link": reset_link,
+            "reset_token": reset_token,
+            "expiration_hours": 24,
+            "current_year": datetime.utcnow().year,
+            "dashboard_url": settings.FRONTEND_URL,
+        }
+        
+        try:
+            success = await send_templated_email(
+                db=db,
+                template_name="imo_password_reset",
+                recipients=[user_email],
+                context=context
+            )
+            
+            if success:
+                logger.info(f"Password reset email sent to {user_email}")
+            else:
+                logger.error(f"Failed to send password reset email to {user_email}")
+                
+            return success
+        except Exception as e:
+            logger.error(f"Error sending password reset email: {e}", exc_info=True)
+            return False

@@ -1,5 +1,7 @@
 """Authentication service for handling user registration, login, and token management."""
 import uuid
+import secrets
+from datetime import datetime, timedelta
 from typing import Optional, Tuple
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -73,6 +75,105 @@ class AuthService:
         )
         
         return profile, access_token, refresh_token
+
+    @staticmethod
+    async def request_password_reset(
+        session: AsyncSession,
+        email: str
+    ) -> Optional[Tuple[str, str]]:
+        """Generate a password reset token for a user.
+        
+        Args:
+            session: Database session
+            email: User email
+            
+        Returns:
+            Tuple of (token, user_email) if user found, None otherwise
+        """
+        # Find user by email
+        stmt = select(Profile).where(Profile.email == email.lower())
+        result = await session.execute(stmt)
+        profile = result.scalars().first()
+        
+        if not profile:
+            return None
+        
+        # Generate a secure token (32 bytes, URL-safe)
+        reset_token = secrets.token_urlsafe(32)
+        
+        # Set token expiration to 24 hours from now
+        token_expires = datetime.utcnow() + timedelta(hours=24)
+        
+        # Update user with reset token
+        profile.password_reset_token = reset_token
+        profile.password_reset_token_expires = token_expires
+        
+        session.add(profile)
+        await session.flush()
+        await session.commit()
+        
+        return reset_token, email
+
+    @staticmethod
+    async def verify_reset_token(
+        session: AsyncSession,
+        token: str
+    ) -> Optional[str]:
+        """Verify a password reset token and return the user's email if valid.
+        
+        Args:
+            session: Database session
+            token: Reset token
+            
+        Returns:
+            User email if token is valid and not expired, None otherwise
+        """
+        stmt = select(Profile).where(
+            Profile.password_reset_token == token,
+            Profile.password_reset_token_expires > datetime.utcnow()
+        )
+        result = await session.execute(stmt)
+        profile = result.scalars().first()
+        
+        return profile.email if profile else None
+
+    @staticmethod
+    async def reset_password(
+        session: AsyncSession,
+        token: str,
+        new_password: str
+    ) -> bool:
+        """Reset a user's password using a valid reset token.
+        
+        Args:
+            session: Database session
+            token: Password reset token
+            new_password: New password (plain text)
+            
+        Returns:
+            True if password was reset successfully, False otherwise
+        """
+        # Find user with valid token
+        stmt = select(Profile).where(
+            Profile.password_reset_token == token,
+            Profile.password_reset_token_expires > datetime.utcnow()
+        )
+        result = await session.execute(stmt)
+        profile = result.scalars().first()
+        
+        if not profile:
+            return False
+        
+        # Update password and clear reset token
+        profile.password_hash = hash_password(new_password)
+        profile.password_reset_token = None
+        profile.password_reset_token_expires = None
+        
+        session.add(profile)
+        await session.flush()
+        await session.commit()
+        
+        return True
 
     @staticmethod
     async def sign_in(

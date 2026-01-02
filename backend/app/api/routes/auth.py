@@ -6,7 +6,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.schemas.auth import (
     SignUpRequest, SignInRequest, AuthResponse, TokenResponse,
-    UserResponse, RefreshTokenRequest, ChangePasswordRequest
+    UserResponse, RefreshTokenRequest, ChangePasswordRequest,
+    PasswordResetRequest, PasswordResetConfirm, PasswordResetResponse
 )
 from app.services.auth_service import AuthService
 from app.services.imo_mail_service import IMOMailService
@@ -282,6 +283,142 @@ async def logout(current_user: Profile = Depends(get_current_user)):
     - Success message
     """
     return {"message": "Logged out successfully"}
+
+
+@router.post("/forgot-password", response_model=PasswordResetResponse, status_code=status.HTTP_200_OK)
+async def forgot_password(
+    request: PasswordResetRequest,
+    session: AsyncSession = Depends(get_db)
+):
+    """Request a password reset link.
+    
+    - **email**: User email address
+    
+    Returns:
+    - Success message (doesn't reveal if email exists for security)
+    """
+    try:
+        logger.info(f"[Auth] Password reset requested for email: {request.email}")
+        
+        # Request password reset (returns token and email if user exists)
+        result = await AuthService.request_password_reset(
+            session=session,
+            email=request.email.lower()
+        )
+        
+        if result:
+            token, user_email = result
+            
+            # Get user profile to get full name
+            from sqlalchemy import select
+            stmt = select(Profile).where(Profile.email == user_email)
+            profile_result = await session.execute(stmt)
+            profile = profile_result.scalars().first()
+            
+            if profile:
+                # Send password reset email
+                try:
+                    await IMOMailService.send_password_reset_email(
+                        db=session,
+                        user_email=user_email,
+                        user_name=profile.full_name,
+                        reset_token=token
+                    )
+                    logger.info(f"[Auth] Password reset email sent to {user_email}")
+                except Exception as email_error:
+                    logger.error(f"[Auth] Failed to send password reset email: {email_error}")
+                    # Don't fail the request even if email fails
+        
+        # Always return success message for security (don't reveal if email exists)
+        return PasswordResetResponse(
+            message="If an account exists with this email, you will receive a password reset link"
+        )
+        
+    except Exception as e:
+        logger.error(f"[Auth] Password reset request error: {str(e)}", exc_info=True)
+        # Return success message anyway for security
+        return PasswordResetResponse(
+            message="If an account exists with this email, you will receive a password reset link"
+        )
+
+
+@router.post("/reset-password", response_model=PasswordResetResponse, status_code=status.HTTP_200_OK)
+async def reset_password(
+    request: PasswordResetConfirm,
+    session: AsyncSession = Depends(get_db)
+):
+    """Reset password using a reset token.
+    
+    - **token**: Password reset token from email link
+    - **new_password**: New password (min 8 chars, 1 uppercase, 1 digit)
+    
+    Returns:
+    - Success message
+    """
+    try:
+        logger.info("[Auth] Password reset confirmation attempted")
+        
+        # Reset the password
+        success = await AuthService.reset_password(
+            session=session,
+            token=request.token,
+            new_password=request.new_password
+        )
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired reset token"
+            )
+        
+        logger.info("[Auth] Password reset successful")
+        return PasswordResetResponse(
+            message="Password has been reset successfully"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[Auth] Password reset error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred during password reset"
+        )
+
+
+@router.get("/verify-reset-token")
+async def verify_reset_token(
+    token: str = Query(...),
+    session: AsyncSession = Depends(get_db)
+):
+    """Verify if a password reset token is valid.
+    
+    - **token**: Password reset token
+    
+    Returns:
+    - Valid: True/False
+    - Email: User email if valid
+    """
+    try:
+        email = await AuthService.verify_reset_token(session, token)
+        
+        if email:
+            return {
+                "valid": True,
+                "email": email
+            }
+        else:
+            return {
+                "valid": False,
+                "email": None
+            }
+            
+    except Exception as e:
+        logger.error(f"[Auth] Token verification error: {str(e)}", exc_info=True)
+        return {
+            "valid": False,
+            "email": None
+        }
 
 
 @router.get("/google/login")

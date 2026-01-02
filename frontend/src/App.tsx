@@ -43,6 +43,7 @@ const GoogleOAuthCallback = lazy(() => import('@/pages/GoogleOAuthCallback'))
 const SubscriptionManager = lazy(() => import('@/pages/SubscriptionManager'))
 const ReviewGuidelines = lazy(() => import('@/pages/ReviewGuidelines'))
 const Admin = lazy(() => import('@/pages/Admin'))
+const ResetPassword = lazy(() => import('@/pages/ResetPassword'))
 
 // Routes that require react-query (async data fetching)
 const QUERY_CLIENT_ROUTES = new Set([
@@ -92,6 +93,7 @@ function AppRoutes() {
         <Route path="/likes" element={<Likes />} />
         <Route path="/auth" element={<Auth />} />
         <Route path="/auth/callback" element={<GoogleOAuthCallback />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/about" element={<About />} />
         <Route path="/contact" element={<Contact />} />
