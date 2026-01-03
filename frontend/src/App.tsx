@@ -5,6 +5,9 @@ import { Toaster } from 'react-hot-toast'
 // Auth Provider
 import { AuthProvider } from '@/contexts/AuthContext'
 
+// Location Provider - for geolocation detection
+import { LocationProvider } from '@/contexts/LocationContext'
+
 // QueryClient Provider - lazy loaded for routes that need it
 import { QueryClientWrapper } from '@/components/providers/QueryClientWrapper'
 
@@ -129,11 +132,13 @@ export default function App() {
   return (
     <Router>
       <AuthProvider>
-        <Toaster position="bottom-left" />
-        <ScrollToTop />
-        <Layout>
-          <AppRoutes />
-        </Layout>
+        <LocationProvider>
+          <Toaster position="bottom-left" />
+          <ScrollToTop />
+          <Layout>
+            <AppRoutes />
+          </Layout>
+        </LocationProvider>
       </AuthProvider>
     </Router>
   )

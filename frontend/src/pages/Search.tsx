@@ -51,6 +51,7 @@ const Search = () => {
 		language: language,
 		enabled: hasSubmitted && !!query?.trim(),
 		page: page,
+		isDetectingLocation: isDetectingLocation,
 	});
 
 	// Clear products when query changes (new search)

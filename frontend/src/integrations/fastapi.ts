@@ -80,7 +80,7 @@ async function apiCall<T>(
 }
 
 /**
- * Search Products
+ * Search Products Request Type
  */
 export interface SearchRequest {
   keyword: string;

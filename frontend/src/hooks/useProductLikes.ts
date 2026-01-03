@@ -38,12 +38,14 @@ export function useProductLikes({
   const [isLiked, setIsLiked] = useState(initialLikedByUser);
   const [likeCount, setLikeCount] = useState(initialLikeCount);
 
-  // Fetch current like status
+  // Get auth token to check if user is authenticated
+  const authTokens = localStorage.getItem('auth_tokens');
+  const token = authTokens ? JSON.parse(authTokens).accessToken : null;
+
+  // Fetch current like status (only if authenticated)
   const { data: statusData, isLoading } = useQuery({
     queryKey: ['productLike', productId],
     queryFn: async () => {
-      const authTokens = localStorage.getItem('auth_tokens');
-      const token = authTokens ? JSON.parse(authTokens).accessToken : null;
       const response = await fetch(
         `${API_BASE_URL}/api/v1/products/${productId}/like/status`,
         {
@@ -61,7 +63,7 @@ export function useProductLikes({
 
       return response.json() as Promise<ProductLikeResponse>;
     },
-    enabled: enabled && !!productId,
+    enabled: enabled && !!productId && !!token, // Only fetch if user is authenticated
     staleTime: 30000, // 30 seconds
   });
 

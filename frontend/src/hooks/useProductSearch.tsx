@@ -15,6 +15,7 @@ interface SearchProductsParams {
 	country?: string;
 	city?: string;
 	language?: string;
+	isDetectingLocation?: boolean;
 }
 
 interface SearchResponse {
@@ -43,6 +44,7 @@ export function useProductSearch({
 	country = "United States",
 	city = "",
 	language = "en",
+	isDetectingLocation = false,
 }: SearchProductsParams) {
 	const [products, setProducts] = useState<Product[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
@@ -52,6 +54,11 @@ export function useProductSearch({
 	const [lastQuery, setLastQuery] = useState<string>("");
 
 	useEffect(() => {
+		// Don't search while location is still being detected
+		if (isDetectingLocation) {
+			return;
+		}
+
 		if (!enabled || !query?.trim()) {
 			setProducts([]);
 			setTotalCount(0);
@@ -162,19 +169,17 @@ export function useProductSearch({
 			} catch (err) {
 				console.error("Search error:", err);
 				const errorMessage = err instanceof Error ? err.message : "Failed to fetch products";
-				console.log("Setting error state to:", errorMessage);
 				setError(errorMessage);
 				setProducts([]);
 				setTotalCount(0);
 				setTotalPages(0);
 			} finally {
-				console.log("Setting isLoading to false");
 				setIsLoading(false);
 			}
 		};
 
 		fetchProducts();
-	}, [query, enabled, page, pageSize, sortBy, priceRange, minRating, zipcode, country, city, language]);
+	}, [query, enabled, page, pageSize, sortBy, priceRange, minRating, zipcode, country, city, language, isDetectingLocation]);
 
 	return {
 		products,
